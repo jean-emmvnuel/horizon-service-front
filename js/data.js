@@ -655,31 +655,87 @@ class DataStore {
   }
 
   getHistoriqueMensuel() {
-    const caTotal = (this.data.abonnements || []).reduce((sum, a) => sum + (Number(a.tarif) || 0), 0);
-    const rechargesTotal = (this.data.mouvementsCaisse || [])
-      .filter(m => m.type === 'recharge')
-      .reduce((sum, m) => sum + (Number(m.montant) || 0), 0);
-    const benefice = Math.max(0, caTotal - rechargesTotal);
-    const margePct = caTotal > 0 ? Math.round((benefice / caTotal) * 100) : 0;
+    const months = [];
+    const now = new Date();
+    const monthCount = 6;
 
-    if (this.data.historiqueMensuel && this.data.historiqueMensuel.length > 0) {
-      return this.data.historiqueMensuel.map(m => ({
-        ...m,
-        margePct: m.ca > 0 ? Math.round(((m.benefice || 0) / m.ca) * 100) : 0
-      }));
+    for (let offset = monthCount - 1; offset >= 0; offset -= 1) {
+      const d = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+      const id = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+      months.push({
+        id,
+        label: label.charAt(0).toUpperCase() + label.slice(1),
+        ca: 0,
+        recharge: 0,
+        benefice: 0,
+        margePct: 0
+      });
     }
 
-    const now = new Date();
-    const moisId = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const moisLabel = now.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-    return [{
-      id: moisId,
-      label: moisLabel.charAt(0).toUpperCase() + moisLabel.slice(1),
-      ca: caTotal,
-      recharge: rechargesTotal,
-      benefice,
-      margePct
-    }];
+    const monthMap = new Map(months.map(m => [m.id, m]));
+
+    const toMonthKey = (dateStr) => {
+      if (!dateStr) return null;
+      const d = new Date(dateStr);
+      if (Number.isNaN(d.getTime())) return null;
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    };
+
+    const addValueToMonth = (monthKey, key, value) => {
+      if (!monthKey || !monthMap.has(monthKey)) return;
+      const item = monthMap.get(monthKey);
+      item[key] += Number(value) || 0;
+    };
+
+    (this.data.abonnements || []).forEach(ab => {
+      const start = ab.dateDebut ? new Date(ab.dateDebut) : new Date();
+      const end = ab.dateFin ? new Date(ab.dateFin) : new Date(start);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
+
+      const tarif = Number(ab.tarif) || 0;
+      const effectiveStart = new Date(start.getFullYear(), start.getMonth(), 1);
+      const effectiveEnd = new Date(end.getFullYear(), end.getMonth() + 1, 0, 23, 59, 59, 999);
+
+      let cursor = new Date(effectiveStart);
+      while (cursor <= effectiveEnd) {
+        const monthKey = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`;
+        if (monthMap.has(monthKey)) {
+          const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+          const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 23, 59, 59, 999);
+          const overlapStart = start > monthStart ? start : monthStart;
+          const overlapEnd = end < monthEnd ? end : monthEnd;
+          const overlapDays = Math.max(1, Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+          const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+          const share = totalDays > 0 ? overlapDays / totalDays : 1;
+          const monthlyCa = tarif * share;
+          addValueToMonth(monthKey, 'ca', monthlyCa);
+        }
+        cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+      }
+    });
+
+    (this.data.mouvementsCaisse || []).forEach(m => {
+      if (!m || !m.date) return;
+      const monthKey = toMonthKey(m.date);
+      if (!monthKey || !monthMap.has(monthKey)) return;
+      const montant = Number(m.montant) || 0;
+      if (m.type === 'recharge') {
+        addValueToMonth(monthKey, 'recharge', montant);
+      }
+    });
+
+    const finalData = months.map(item => {
+      const benefice = Math.max(0, item.ca - item.recharge);
+      const margePct = item.ca > 0 ? Math.round((benefice / item.ca) * 100) : 0;
+      return {
+        ...item,
+        benefice,
+        margePct
+      };
+    });
+
+    return finalData;
   }
 
   getKPIs() {
