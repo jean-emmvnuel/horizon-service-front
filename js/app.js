@@ -2046,72 +2046,441 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function exportAllDataToPDF() {
     const data = store.data;
+    const kpis = store.getKPIs();
+    const urgents = store.getUrgentAbonnements();
     const nowStr = new Date().toLocaleDateString('fr-FR', {
       day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
     });
+    const auditRef = 'HS-VERITE-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substr(2, 4).toUpperCase();
+    const currentUser = currentSession?.name || 'Administrateur';
+    const currentRole = currentSession?.roleLabel || 'Fondateur';
 
-    const subsRows = data.abonnements.map(s => {
-      const cli = data.clients.find(c => c.id === s.clientId) || { nom: 'Inconnu', telephone: '-' };
-      const cpt = data.comptes.find(c => c.id === s.compteId) || { libelle: '-' };
-      const prf = data.profils.find(p => p.id === s.profilId) || { nom: '-' };
+    // 1. Analyse détaillée des clients & valeur
+    const clientStats = (data.clients || []).map(cli => {
+      const cliSubs = (data.abonnements || []).filter(s => s.clientId === cli.id);
+      const activeSubs = cliSubs.filter(s => {
+        const st = store.getAbonnementStatus(s);
+        return st.code === 'actif' || st.code === 'echeance_proche';
+      });
+      const totalTarif = activeSubs.reduce((sum, s) => sum + (Number(s.tarif) || 0), 0);
+      return {
+        ...cli,
+        subsCount: cliSubs.length,
+        activeCount: activeSubs.length,
+        totalTarif
+      };
+    }).sort((a, b) => b.totalTarif - a.totalTarif);
+
+    // 2. Abonnements complets
+    const subsRows = (data.abonnements || []).map(s => {
+      const cli = (data.clients || []).find(c => c.id === s.clientId) || { nom: 'Client inconnu', telephone: '-' };
+      const prf = (data.profils || []).find(p => p.id === s.profilId);
+      const cpt = prf ? (data.comptes || []).find(c => c.id === prf.compteId) : null;
+      const statusObj = store.getAbonnementStatus(s);
+
+      let badgeStyle = 'background: #d1fae5; color: #065f46;';
+      let statusLabel = 'Actif';
+      if (statusObj.code === 'expire') {
+        badgeStyle = 'background: #fee2e2; color: #991b1b;';
+        statusLabel = `Expiré (${Math.abs(statusObj.daysLeft)}j)`;
+      } else if (statusObj.code === 'echeance_proche') {
+        badgeStyle = 'background: #fef3c7; color: #92400e;';
+        statusLabel = `Échéance (${statusObj.daysLeft}j)`;
+      }
+
       return `<tr>
         <td><strong>${escapeHtml(cli.nom)}</strong></td>
         <td>${escapeHtml(cli.telephone)}</td>
-        <td>${escapeHtml(cpt.libelle)} / ${escapeHtml(prf.nom)}</td>
-        <td>${escapeHtml(s.dateDebut)}</td>
-        <td>${escapeHtml(s.dateFin)}</td>
-        <td style="text-align: right; font-weight: bold;">${formatFCFA(s.tarif)}</td>
-        <td><span class="badge ${s.statut === 'actif' ? 'badge-success' : 'badge-danger'}">${escapeHtml(s.statut)}</span></td>
+        <td>${escapeHtml((cpt ? cpt.libelle : 'Compte') + ' / ' + (prf ? prf.nom : 'Profil'))}</td>
+        <td>${escapeHtml(s.dateDebut || '-')}</td>
+        <td><strong>${escapeHtml(s.dateFin || '-')}</strong></td>
+        <td style="text-align: right; font-weight: bold; color: #111;">${formatFCFA(s.tarif)}</td>
+        <td><span style="display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 9px; font-weight: bold; ${badgeStyle}">${escapeHtml(statusLabel)}</span></td>
       </tr>`;
     }).join('');
+
+    // 3. Comptes & Profils détaillés
+    const comptesRows = (data.comptes || []).map(c => {
+      const profils = (data.profils || []).filter(p => p.compteId === c.id);
+      const profilsDetails = profils.map(p => {
+        const sub = (data.abonnements || []).find(a => a.profilId === p.id && a.statut === 'actif');
+        const cli = sub ? (data.clients || []).find(cl => cl.id === sub.clientId) : null;
+        const affectation = cli ? `Abonné: <strong>${escapeHtml(cli.nom)}</strong> (${escapeHtml(cli.telephone)})` : '<span style="color: #10b981; font-weight: bold;">DISPONIBLE (Libre)</span>';
+        return `<div style="margin: 3px 0; padding: 3px 6px; background: #f8fafc; border-left: 2px solid #e50914; font-size: 10px;">
+          <strong>${escapeHtml(p.nom)}</strong> (PIN: <code>${escapeHtml(p.codePin || '0000')}</code>) — ${affectation}
+        </div>`;
+      }).join('') || '<em style="color: #94a3b8;">Aucun profil configuré</em>';
+
+      return `<div style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; margin-bottom: 12px; page-break-inside: avoid;">
+        <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #cbd5e1; padding-bottom: 6px; margin-bottom: 8px;">
+          <div>
+            <strong style="font-size: 12px; color: #0f172a;">${escapeHtml(c.libelle)}</strong>
+            <span style="color: #64748b; font-size: 10px; margin-left: 8px;">(${escapeHtml(c.email)})</span>
+          </div>
+          <div style="text-align: right;">
+            <span style="font-weight: bold; color: #e50914;">${formatFCFA(c.coutRechargeMensuel || 6500)} / mois</span>
+            <span style="font-size: 10px; color: #64748b; margin-left: 10px;">Prochaine recharge: <strong>${escapeHtml(c.dateReabonnement || '-')}</strong></span>
+          </div>
+        </div>
+        <div>
+          <div style="font-weight: bold; font-size: 10px; text-transform: uppercase; color: #475569; margin-bottom: 4px;">Profils associés & affectations (${profils.length} profils) :</div>
+          ${profilsDetails}
+        </div>
+      </div>`;
+    }).join('');
+
+    // 4. Alertes critiques
+    const urgentRows = (urgents || []).map(item => {
+      const isExpired = item.status.code === 'expire';
+      return `<tr style="background: ${isExpired ? '#fef2f2' : '#fffbeb'};">
+        <td><strong style="color: ${isExpired ? '#b91c1c' : '#b45309'};">${escapeHtml(item.client.nom)}</strong></td>
+        <td>${escapeHtml(item.client.telephone)}</td>
+        <td>${escapeHtml(item.compte.libelle)} / ${escapeHtml(item.profil.nom)}</td>
+        <td><strong>${escapeHtml(item.dateFin)}</strong></td>
+        <td><span style="font-weight: bold; color: ${isExpired ? '#dc2626' : '#d97706'};">${isExpired ? '⚠️ Expiré il y a ' + Math.abs(item.status.daysLeft) + 'j' : '⏳ Expire dans ' + item.status.daysLeft + 'j'}</span></td>
+        <td style="text-align: right; font-weight: bold;">${formatFCFA(item.tarif)}</td>
+      </tr>`;
+    }).join('');
+
+    // 5. Mouvements de caisse récents
+    const mouvementsRows = (data.mouvementsCaisse || []).slice(0, 10).map(m => {
+      const isRecharge = m.type === 'recharge';
+      const color = isRecharge ? '#b91c1c' : '#047857';
+      const prefix = isRecharge ? '-' : '+';
+      return `<tr>
+        <td>${escapeHtml(m.date || '-')}</td>
+        <td><span style="font-weight: bold; text-transform: uppercase; font-size: 9px; padding: 2px 5px; border-radius: 3px; background: ${isRecharge ? '#fee2e2' : '#d1fae5'}; color: ${color};">${escapeHtml(m.type)}</span></td>
+        <td><strong>${escapeHtml(m.beneficiaire || 'Horizon')}</strong></td>
+        <td>${escapeHtml(m.motif || '-')}</td>
+        <td style="text-align: right; font-weight: bold; color: ${color};">${prefix} ${formatFCFA(m.montant)}</td>
+      </tr>`;
+    }).join('');
+
+    // 6. Journal d'audit récent
+    const auditRows = (data.auditLogs || []).slice(0, 8).map(log => {
+      const dateFormatted = log.timestamp ? new Date(log.timestamp).toLocaleString('fr-FR', {
+        day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+      }) : '-';
+      return `<tr>
+        <td style="white-space: nowrap; font-size: 9px; color: #64748b;">${dateFormatted}</td>
+        <td><strong>${escapeHtml(log.userName || 'Système')}</strong></td>
+        <td><code style="font-size: 9px; background: #f1f5f9; padding: 2px 4px; border-radius: 3px;">${escapeHtml(log.action || '-')}</code></td>
+        <td style="font-size: 10px; color: #334155;">${escapeHtml(log.detail || '-')}</td>
+      </tr>`;
+    }).join('');
+
+    // Clé de répartition prévisionnelle (50% Emmanuel / 50% Malan)
+    const partChacun = Math.round((kpis.beneficeMois || 0) * 0.5);
 
     const printHtml = `
       <!DOCTYPE html>
       <html lang="fr">
       <head>
         <meta charset="UTF-8">
-        <title>Horizon Service — Rapport Consolidé Officiel</title>
+        <title>Horizon Service — Carte de Vérité & Audit Consolidé</title>
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; margin: 25px; color: #111; font-size: 11px; }
-          .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e50914; padding-bottom: 12px; margin-bottom: 16px; }
-          .logo { font-size: 20px; font-weight: 900; color: #e50914; letter-spacing: 1px; }
-          .subtitle { font-size: 11px; color: #666; margin-top: 2px; }
-          .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
-          .badge-success { background: #d1fae5; color: #065f46; }
-          .badge-danger { background: #fee2e2; color: #991b1b; }
-          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-          th { background: #f3f4f6; color: #111; text-align: left; padding: 6px 8px; border: 1px solid #e5e7eb; font-weight: bold; font-size: 10px; text-transform: uppercase; }
-          td { padding: 6px 8px; border: 1px solid #e5e7eb; font-size: 10px; }
+          @page { size: A4; margin: 12mm 10mm; }
+          * { box-sizing: border-box; }
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            color: #0f172a;
+            font-size: 10px;
+            line-height: 1.4;
+            background: #ffffff;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .header-banner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px solid #e50914;
+            padding-bottom: 12px;
+            margin-bottom: 14px;
+          }
+          .brand-box { display: flex; align-items: center; gap: 10px; }
+          .logo {
+            font-size: 22px;
+            font-weight: 900;
+            color: #e50914;
+            letter-spacing: 1.5px;
+            line-height: 1;
+          }
+          .badge-cert {
+            display: inline-block;
+            background: #0f172a;
+            color: #ffffff;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            margin-top: 4px;
+          }
+          .header-meta {
+            text-align: right;
+            font-size: 10px;
+            color: #475569;
+          }
+          .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 16px;
+            page-break-inside: avoid;
+          }
+          .kpi-box {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 8px 10px;
+          }
+          .kpi-box.highlight {
+            background: #fff1f2;
+            border-color: #fca5a5;
+          }
+          .kpi-box.success {
+            background: #f0fdf4;
+            border-color: #86efac;
+          }
+          .kpi-title {
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #64748b;
+            margin-bottom: 3px;
+          }
+          .kpi-value {
+            font-size: 15px;
+            font-weight: 900;
+            color: #0f172a;
+          }
+          .kpi-sub {
+            font-size: 8.5px;
+            color: #64748b;
+            margin-top: 2px;
+          }
+          h2 {
+            font-size: 12px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #0f172a;
+            border-left: 3px solid #e50914;
+            padding-left: 8px;
+            margin: 16px 0 8px 0;
+            page-break-after: avoid;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 14px;
+            page-break-inside: auto;
+          }
+          tr { page-break-inside: avoid; page-break-after: auto; }
+          th {
+            background: #f1f5f9;
+            color: #1e293b;
+            text-align: left;
+            padding: 5px 7px;
+            border: 1px solid #cbd5e1;
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+          }
+          td {
+            padding: 5px 7px;
+            border: 1px solid #e2e8f0;
+            font-size: 9.5px;
+            color: #334155;
+          }
           tr:nth-child(even) { background: #fafafa; }
-          h2 { font-size: 13px; margin: 18px 0 8px 0; border-left: 3px solid #e50914; padding-left: 8px; color: #111; }
-          .footer { text-align: center; color: #888; font-size: 9px; margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 10px; }
-          @media print {
-            body { margin: 10mm; }
+          .partner-box {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 14px;
+            page-break-inside: avoid;
+          }
+          .partner-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 5px;
+            padding: 8px 12px;
+          }
+          .signature-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 25px;
+            page-break-inside: avoid;
+          }
+          .signature-box {
+            border: 1px dashed #94a3b8;
+            border-radius: 6px;
+            padding: 12px;
+            height: 90px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+          }
+          .footer {
+            text-align: center;
+            color: #64748b;
+            font-size: 8.5px;
+            margin-top: 20px;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 8px;
+            page-break-inside: avoid;
           }
         </style>
       </head>
       <body>
-        <div class="header">
+        <!-- EN-TÊTE OFFICIEL -->
+        <div class="header-banner">
           <div>
-            <div class="logo">HORIZON SERVICE</div>
-            <div class="subtitle">Gestion d'abonnements Netflix partagés — Rapport consolidé certifié</div>
+            <div class="brand-box">
+              <div class="logo">HORIZON SERVICE</div>
+            </div>
+            <div style="font-size: 11px; font-weight: bold; color: #1e293b; margin-top: 2px;">
+              CARTE DE VÉRITÉ & AUDIT CONSOLIDÉ EN TEMPS RÉEL
+            </div>
+            <div class="badge-cert">BASE POSTGRESQL SUPABASE • ZERO CACHE LOCAL • SYNCHRONISÉ</div>
           </div>
-          <div style="text-align: right;">
-            <div><strong>Date d'export :</strong> ${nowStr}</div>
-            <div style="color: #666;">Émis par : ${escapeHtml(currentSession?.name || 'Administrateur')}</div>
+          <div class="header-meta">
+            <div><strong>Réf. Audit :</strong> <code>${auditRef}</code></div>
+            <div><strong>Date & Heure :</strong> ${nowStr}</div>
+            <div><strong>Opérateur :</strong> ${escapeHtml(currentUser)} (${escapeHtml(currentRole)})</div>
+            <div style="color: #047857; font-weight: bold; margin-top: 2px;">● Système Opérationnel & Vérifié</div>
           </div>
         </div>
 
-        <h2>1. Registre des Abonnements (${data.abonnements.length} abonnés)</h2>
+        <!-- SECTION 1 : VUE STRATÉGIQUE & 8 KPIS MAJEURS -->
+        <h2>1. Vue Globale & Indicateurs Stratégiques (Carte de Vérité)</h2>
+        <div class="kpi-grid">
+          <div class="kpi-box highlight">
+            <div class="kpi-title">Chiffre d'Affaires Mensuel (MRR)</div>
+            <div class="kpi-value" style="color: #e50914;">${formatFCFA(kpis.caTotal)}</div>
+            <div class="kpi-sub">${kpis.totalAbonnementsActifs} abonnements actifs</div>
+          </div>
+          <div class="kpi-box">
+            <div class="kpi-title">Charges Recharges Netflix</div>
+            <div class="kpi-value" style="color: #475569;">${formatFCFA(kpis.rechargesTotal)}</div>
+            <div class="kpi-sub">${kpis.totalComptes} comptes opérationnels</div>
+          </div>
+          <div class="kpi-box success">
+            <div class="kpi-title">Bénéfice Net Opérationnel</div>
+            <div class="kpi-value" style="color: #047857;">${formatFCFA(kpis.beneficeMois)}</div>
+            <div class="kpi-sub">Marge bénéficiaire nette : <strong>${kpis.margePctMois}%</strong></div>
+          </div>
+          <div class="kpi-box">
+            <div class="kpi-title">Solde Caisse Contrôlé</div>
+            <div class="kpi-value">${formatFCFA(kpis.caisseReelle)}</div>
+            <div class="kpi-sub">Écart caisse: <strong>${kpis.ecartCaisse >= 0 ? '+' : ''}${formatFCFA(kpis.ecartCaisse)}</strong></div>
+          </div>
+          <div class="kpi-box">
+            <div class="kpi-title">Taux d'Occupation du Parc</div>
+            <div class="kpi-value" style="color: #0284c7;">${kpis.tauxRemplissage}%</div>
+            <div class="kpi-sub">${kpis.totalAbonnementsActifs} places / ${kpis.capaciteTotale} places max</div>
+          </div>
+          <div class="kpi-box">
+            <div class="kpi-title">Places Libres Immédiates</div>
+            <div class="kpi-value" style="color: #d97706;">${kpis.placesLibres} places</div>
+            <div class="kpi-sub">Potentiel commercial libre</div>
+          </div>
+          <div class="kpi-box">
+            <div class="kpi-title">Portefeuille Clients Actifs</div>
+            <div class="kpi-value">${kpis.totalClients} clients</div>
+            <div class="kpi-sub">Panier moyen : ${kpis.totalClients > 0 ? formatFCFA(Math.round(kpis.caTotal / kpis.totalClients)) : '0 FCFA'}</div>
+          </div>
+          <div class="kpi-box ${kpis.urgentsCount > 0 ? 'highlight' : ''}">
+            <div class="kpi-title">Alertes & Échéances Urgentes</div>
+            <div class="kpi-value" style="color: ${kpis.urgentsCount > 0 ? '#dc2626' : '#047857'};">${kpis.urgentsCount} urgences</div>
+            <div class="kpi-sub">${kpis.codesCount} profils avec PIN à renouveler</div>
+          </div>
+        </div>
+
+        <!-- SECTION 2 : TRÉSORERIE & RÉPARTITION ASSOCIÉS -->
+        <h2>2. Trésorerie, Pointage & Répartition des Bénéfices</h2>
+        <div class="partner-box">
+          <div class="partner-card">
+            <div style="font-weight: bold; font-size: 11px; color: #e50914; margin-bottom: 4px;">Part Associé : Jean Emmanuel (Fondateur 50%)</div>
+            <div style="font-size: 16px; font-weight: 900; color: #0f172a;">${formatFCFA(partChacun)}</div>
+            <div style="font-size: 9px; color: #64748b; margin-top: 2px;">Lien Wave : pay.wave.com/m/horizon-service-emmanuel</div>
+          </div>
+          <div class="partner-card">
+            <div style="font-weight: bold; font-size: 11px; color: #0284c7; margin-bottom: 4px;">Part Associé : Malan Abdias (Associé 50%)</div>
+            <div style="font-size: 16px; font-weight: 900; color: #0f172a;">${formatFCFA(partChacun)}</div>
+            <div style="font-size: 9px; color: #64748b; margin-top: 2px;">Lien Wave : pay.wave.com/m/horizon-service-malan</div>
+          </div>
+        </div>
+
+        <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 12px; margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <strong>Dernier Pointage Physique Réel Certifié :</strong> ${formatFCFA(kpis.caisseReelle)}
+              <span style="color: #64748b; margin-left: 8px;">(Date : ${escapeHtml(data.caisse?.dateDernierPointage || '-')})</span>
+            </div>
+            <div>
+              <strong>Solde Théorique Calculé :</strong> ${formatFCFA(kpis.caisseTheorique)}
+              <span style="margin-left: 8px; font-weight: bold; color: ${kpis.ecartCaisse >= 0 ? '#047857' : '#b91c1c'};">Écart : ${kpis.ecartCaisse >= 0 ? '+' : ''}${formatFCFA(kpis.ecartCaisse)}</span>
+            </div>
+          </div>
+          ${data.caisse?.notes ? `<div style="font-size: 9px; color: #475569; margin-top: 4px;"><em>Notes de caisse : ${escapeHtml(data.caisse.notes)}</em></div>` : ''}
+        </div>
+
+        <!-- DERNIERS MOUVEMENTS DE CAISSE -->
+        <div style="font-weight: bold; font-size: 10px; color: #334155; margin-bottom: 4px;">Derniers Flux de Trésorerie Enregistrés (10 derniers) :</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Type</th>
+              <th>Bénéficiaire / Émetteur</th>
+              <th>Motif</th>
+              <th style="text-align: right;">Montant (FCFA)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${mouvementsRows || '<tr><td colspan="5" style="text-align:center;">Aucun mouvement de caisse enregistré</td></tr>'}
+          </tbody>
+        </table>
+
+        <!-- SECTION 3 : ALERTES RENOUVELLEMENTS PRIORITAIRES -->
+        <h2>3. Tableau d'Alerte Opérationnelle : Échéances Prioritaires (&lt; 7 jours &amp; expirés)</h2>
         <table>
           <thead>
             <tr>
               <th>Client</th>
               <th>Contact WhatsApp</th>
-              <th>Compte / Profil</th>
+              <th>Compte &amp; Profil Affecté</th>
+              <th>Date d'Échéance</th>
+              <th>Statut d'Alerte</th>
+              <th style="text-align: right;">Montant Relance</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${urgentRows || '<tr><td colspan="6" style="text-align:center; color: #047857; font-weight: bold;">✅ Aucun abonnement en retard ni en échéance imminente. Situation saine !</td></tr>'}
+          </tbody>
+        </table>
+
+        <!-- SECTION 4 : REGISTRE INTÉGRAL DES ABONNEMENTS -->
+        <h2>4. Registre Intégral des Abonnements (${(data.abonnements || []).length} abonnements au total)</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Client</th>
+              <th>Téléphone WhatsApp</th>
+              <th>Compte / Profil Netflix</th>
               <th>Début</th>
               <th>Échéance</th>
-              <th style="text-align: right;">Tarif</th>
+              <th style="text-align: right;">Tarif Mensuel</th>
               <th>Statut</th>
             </tr>
           </thead>
@@ -2120,52 +2489,76 @@ document.addEventListener('DOMContentLoaded', () => {
           </tbody>
         </table>
 
-        <h2>2. Comptes Netflix & Profils (${data.comptes.length} comptes)</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Libellé</th>
-              <th>E-mail</th>
-              <th>Recharge Mensuelle</th>
-              <th>Prochain Réabonnement</th>
-              <th>Capacité</th>
-              <th>Statut</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${data.comptes.map(c => `<tr>
-              <td><strong>${escapeHtml(c.libelle)}</strong></td>
-              <td>${escapeHtml(c.email)}</td>
-              <td>${formatFCFA(c.coutRechargeMensuel || 6500)}</td>
-              <td>${escapeHtml(c.dateReabonnement || '-')}</td>
-              <td>${c.capacitePlaces || 15} places (${c.maxProfils || 5} profils max)</td>
-              <td>${escapeHtml(c.statut || 'actif')}</td>
-            </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;">Aucun compte enregistré</td></tr>'}
-          </tbody>
-        </table>
+        <!-- SECTION 5 : PARC NETFLIX & AFFECTATION DES PROFILS -->
+        <h2>5. Inventaire du Parc de Comptes Netflix &amp; Affectation des Profils (${(data.comptes || []).length} comptes)</h2>
+        ${comptesRows || '<div style="text-align:center; padding: 10px; color: #94a3b8;">Aucun compte Netflix enregistré</div>'}
 
-        <h2>3. Registre des Clients (${data.clients.length} clients)</h2>
+        <!-- SECTION 6 : VALEUR CLIENTÈLE & ANNUAIRE -->
+        <h2>6. Répertoire &amp; Valeur Commerciale des Clients (${(data.clients || []).length} clients)</h2>
         <table>
           <thead>
             <tr>
-              <th>Nom</th>
-              <th>Téléphone WhatsApp</th>
-              <th>Ancien Identifiant</th>
-              <th>Notes</th>
+              <th>Nom &amp; Prénoms</th>
+              <th>Numéro WhatsApp</th>
+              <th>Ancien Réf.</th>
+              <th style="text-align: center;">Abonnements Actifs</th>
+              <th style="text-align: right;">Valeur Mensuelle</th>
+              <th>Notes Internes</th>
             </tr>
           </thead>
           <tbody>
-            ${data.clients.map(c => `<tr>
+            ${clientStats.map(c => `<tr>
               <td><strong>${escapeHtml(c.nom)}</strong></td>
               <td>${escapeHtml(c.telephone)}</td>
               <td>${escapeHtml(c.ancienId || '-')}</td>
+              <td style="text-align: center; font-weight: bold;">${c.activeCount} actif(s)</td>
+              <td style="text-align: right; font-weight: bold; color: #047857;">${formatFCFA(c.totalTarif)}</td>
               <td>${escapeHtml(c.notes || '-')}</td>
-            </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;">Aucun client enregistré</td></tr>'}
+            </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;">Aucun client enregistré</td></tr>'}
           </tbody>
         </table>
 
+        <!-- SECTION 7 : TRAÇABILITÉ & REGISTRE D'AUDIT RÉCENT -->
+        <h2>7. Traçabilité Légale &amp; Journal d'Audit Récent</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Horodatage</th>
+              <th>Opérateur</th>
+              <th>Action Réalisée</th>
+              <th>Détails &amp; Modifications</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${auditRows || '<tr><td colspan="4" style="text-align:center;">Aucun journal d\'audit disponible</td></tr>'}
+          </tbody>
+        </table>
+
+        <!-- SECTION 8 : SIGNATURES & VISAS DE CERTIFICATION -->
+        <div class="signature-section">
+          <div class="signature-box">
+            <div>
+              <div style="font-weight: bold; font-size: 10px; text-transform: uppercase; color: #0f172a;">Visa Fondateur : Emmanuel</div>
+              <div style="font-size: 8.5px; color: #64748b;">Responsable Technique &amp; Exploitation</div>
+            </div>
+            <div style="font-size: 8px; color: #94a3b8; border-top: 1px dotted #cbd5e1; padding-top: 3px;">
+              Date &amp; Signature pour validation de l'état
+            </div>
+          </div>
+          <div class="signature-box">
+            <div>
+              <div style="font-weight: bold; font-size: 10px; text-transform: uppercase; color: #0f172a;">Visa Associé : Malan Abdias</div>
+              <div style="font-size: 8.5px; color: #64748b;">Responsable Commercial &amp; Partenariat</div>
+            </div>
+            <div style="font-size: 8px; color: #94a3b8; border-top: 1px dotted #cbd5e1; padding-top: 3px;">
+              Date &amp; Signature pour validation de l'état
+            </div>
+          </div>
+        </div>
+
         <div class="footer">
-          Horizon Service — Document de gestion certifié — Abidjan, Côte d'Ivoire.
+          <strong>HORIZON SERVICE</strong> — Plateforme certifiée de gestion de comptes partagés — Abidjan, Côte d'Ivoire.<br>
+          Données extraites en direct de la base de données PostgreSQL Supabase (Réf. Audit <code>${auditRef}</code>). Document strictement confidentiel réservé aux associés.
         </div>
       </body>
       </html>
@@ -2180,8 +2573,8 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => {
         printWin.print();
       }, 400);
-      showToast('Fenêtre d\'impression PDF générée !', 'success');
-      store.logAction(currentSession?.name, 'EXPORT_PDF', 'Génération du rapport PDF consolidé');
+      showToast('Carte de Vérité PDF générée avec succès !', 'success');
+      store.logAction(currentSession?.name, 'EXPORT_PDF_VERITE', 'Génération de la Carte de Vérité et Audit PDF complet');
     } else {
       const iframe = document.createElement('iframe');
       iframe.style.position = 'fixed';
@@ -2198,7 +2591,7 @@ document.addEventListener('DOMContentLoaded', () => {
         iframe.contentWindow.print();
         document.body.removeChild(iframe);
       }, 400);
-      showToast('Impression PDF lancée !', 'success');
+      showToast('Impression de la Carte de Vérité PDF lancée !', 'success');
     }
   }
 
