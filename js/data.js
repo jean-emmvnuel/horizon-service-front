@@ -100,6 +100,36 @@ class DataStore {
             errorMsg = resData.error;
           }
         }
+        const frenchStatusMessages = {
+          400: 'La requête envoyée est invalide.',
+          401: 'Authentification requise ou identifiants incorrects.',
+          403: 'Vous n’êtes pas autorisé à effectuer cette action.',
+          404: 'La ressource demandée est introuvable.',
+          409: 'Cette opération entre en conflit avec une donnée existante.',
+          422: 'Les données envoyées ne sont pas valides.',
+          429: 'Trop de requêtes. Veuillez réessayer dans un instant.',
+          500: 'Une erreur interne est survenue sur le serveur.',
+          502: 'Le serveur backend est temporairement indisponible.',
+          503: 'Le serveur backend est temporairement indisponible.'
+        };
+        const standardEnglishErrors = [
+          'bad request',
+          'unauthorized',
+          'forbidden',
+          'not found',
+          'conflict',
+          'internal server error',
+          'too many requests'
+        ];
+        const normalizedError = errorMsg.toLowerCase();
+        if (
+          errorMsg === `Erreur HTTP ${res.status}` ||
+          standardEnglishErrors.includes(normalizedError) ||
+          normalizedError.startsWith('cannot get ') ||
+          (resData && resData.error === errorMsg)
+        ) {
+          errorMsg = frenchStatusMessages[res.status] || errorMsg;
+        }
 
         const endpointShort = path.replace(this.apiBase, '').split('?')[0];
 
@@ -126,8 +156,8 @@ class DataStore {
       return resData;
     } catch (err) {
       if (!err.status) {
-        // Erreur réseau : impossible de joindre le serveur
-        const netMsg = 'Impossible de contacter le serveur backend. Vérifiez votre connexion ou que l'API est démarrée.';
+        const origin = typeof window !== 'undefined' ? window.location.origin : 'cette origine';
+        const netMsg = `Impossible de lire la réponse du backend (${this.apiBase}). Vérifiez la connexion et que l'API autorise l'origine ${origin} en CORS.`;
         const endpointShort = path.replace(this.apiBase, '').split('?')[0];
 
         if (typeof window !== 'undefined') {

@@ -62,11 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         } catch (err) {
           console.error('Erreur soumission login:', err);
-          if (loginErrorMsg) {
-            const statusInfo = err.status ? ` [${err.status}]` : '';
-            loginErrorMsg.innerHTML = `<strong>Erreur backend${statusInfo}</strong> — ${err.message || 'Impossible de contacter le serveur.'}`;
-            loginErrorMsg.style.display = 'block';
-          }
+          showLoginBackendError(err.message || 'Impossible de contacter le serveur.', err.status);
         } finally {
           if (btnSubmit) btnSubmit.disabled = false;
         }
@@ -167,16 +163,26 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.appendChild(alertEl);
       }
     }
-    const statusBadge = status ? `<span class="modal-err-code">${status}</span>` : '';
-    alertEl.innerHTML = `
-      <span class="modal-err-icon">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-      </span>
-      <span class="modal-err-text">${statusBadge}${message}</span>
-      <button class="modal-err-close" onclick="this.parentElement.remove()" aria-label="Fermer">✕</button>
-    `;
+    alertEl.replaceChildren();
+    const icon = document.createElement('span');
+    icon.className = 'modal-err-icon';
+    icon.textContent = '!';
+    const text = document.createElement('span');
+    text.className = 'modal-err-text';
+    if (status) {
+      const statusBadge = document.createElement('span');
+      statusBadge.className = 'modal-err-code';
+      statusBadge.textContent = String(status);
+      text.appendChild(statusBadge);
+    }
+    text.appendChild(document.createTextNode(message));
+    const closeButton = document.createElement('button');
+    closeButton.className = 'modal-err-close';
+    closeButton.type = 'button';
+    closeButton.setAttribute('aria-label', 'Fermer');
+    closeButton.textContent = '✕';
+    closeButton.addEventListener('click', () => alertEl.remove());
+    alertEl.append(icon, text, closeButton);
     alertEl.style.display = 'flex';
     alertEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
@@ -187,7 +193,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function showLoginBackendError(message, status) {
     const loginErrorMsg = document.getElementById('login-error-msg');
     if (loginErrorMsg) {
-      loginErrorMsg.innerHTML = (status ? `<strong>[${status}]</strong> ` : '') + message;
+      loginErrorMsg.replaceChildren();
+      const label = document.createElement('strong');
+      label.textContent = status ? `Erreur backend [${status}] — ` : 'Erreur backend — ';
+      loginErrorMsg.append(label, document.createTextNode(message));
       loginErrorMsg.style.display = 'block';
     }
   }
