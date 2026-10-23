@@ -233,20 +233,12 @@
           <div class="kpi-card">
             <div class="kpi-header">
               <span class="kpi-code">K18 — Caisse Théorique</span>
-              <span class="badge badge-neutral">Bénéfice restant</span>
+              <span class="badge badge-neutral">Solde calculé</span>
             </div>
             <div id="kpi-caisse-theorique" class="kpi-value">0 FCFA</div>
-            <div class="kpi-subtext" id="kpi-caisse-theorique-sub">Solde théorique attendu</div>
+            <div class="kpi-subtext" id="kpi-caisse-theorique-sub">Total des abonnements − toutes les recharges et dépenses</div>
           </div>
 
-          <div class="kpi-card">
-            <div class="kpi-header">
-              <span class="kpi-code">K20 — Écart de Caisse</span>
-              <span id="badge-ecart-statut" class="badge badge-neutral">Audit</span>
-            </div>
-            <div id="kpi-ecart-caisse" class="kpi-value">0 FCFA</div>
-            <div class="kpi-subtext" id="kpi-pointage-reel-sub">Constaté en caisse réelle</div>
-          </div>
         </div>
 
         <!-- ================= GRAPHIQUES RÉACTIFS VISUELS ================= -->
@@ -767,13 +759,13 @@
         <input type="hidden" id="cli-edit-id">
         <div class="modal-body">
           <div class="form-group">
-            <label class="form-label" for="cli-nom">Nom complet ou prénom usuel *</label>
-            <input type="text" id="cli-nom" class="form-control" placeholder="Ex: Kouamé Jean" required>
+            <label class="form-label" for="cli-nom">Nom complet ou prénom usuel (facultatif)</label>
+            <input type="text" id="cli-nom" class="form-control" placeholder="Ex. : Kouamé Jean">
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="cli-tel">Numéro WhatsApp (+225) *</label>
-            <input type="tel" id="cli-tel" class="form-control" placeholder="Ex: +225 07 12 34 56 78" required>
+            <label class="form-label" for="cli-tel">Numéro WhatsApp (+225) (facultatif)</label>
+            <input type="tel" id="cli-tel" class="form-control" placeholder="Ex. : +225 07 12 34 56 78">
           </div>
 
           <div class="form-row">
@@ -933,6 +925,11 @@
               <option value="Emmanuel">Emmanuel (Fondateur)</option>
               <option value="Malan Abdias">Malan Abdias (Associé)</option>
             </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="cash-date">Date de l'opération *</label>
+            <input type="date" id="cash-date" class="form-control" required>
           </div>
 
           <div class="form-group">

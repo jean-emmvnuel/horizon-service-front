@@ -471,7 +471,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (kpiCaisseTheorique) kpiCaisseTheorique.textContent = `${formatFCFA(kpis.caisseTheorique)} FCFA`;
     if (kpiEcartCaisse) {
       kpiEcartCaisse.textContent = `${formatFCFA(kpis.ecartCaisse)} FCFA`;
-      kpiEcartCaisse.className = kpis.ecartCaisse > 0 ? 'kpi-value text-danger' : 'kpi-value text-success';
+      kpiEcartCaisse.className = kpis.ecartCaisse < 0 ? 'kpi-value text-danger' : 'kpi-value text-success';
     }
 
     // À traiter aujourd'hui (Alertes)
@@ -490,7 +490,7 @@ document.addEventListener('DOMContentLoaded', () => {
         urgentsList.innerHTML = urgents.map(item => `
           <tr class="${item.status.code === 'echu' ? 'row-danger' : 'row-urgent'}">
             <td>
-              <strong>${escapeHtml(item.client.nom)}</strong>
+              <strong>${escapeHtml(item.client.nom || 'Sans nom')}</strong>
               ${item.client.ancienId ? `<span class="badge badge-neutral" style="margin-left: 4px;">${escapeHtml(item.client.ancienId)}</span>` : ''}
               <div class="text-xs text-muted">${formatPhone(item.client.telephone)}</div>
             </td>
@@ -600,7 +600,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <tr class="${item.status.isUrgent ? (item.status.code === 'echu' ? 'row-danger' : 'row-urgent') : ''}">
         <td>
           <button class="btn-link btn-open-client-drawer" data-client-id="${item.client.id}" style="font-weight: 700; text-align: left; text-decoration: underline;">
-            ${escapeHtml(item.client.nom)}
+            ${escapeHtml(item.client.nom || 'Sans nom')}
           </button>
           <div class="text-xs text-muted">${formatPhone(item.client.telephone)}</div>
         </td>
@@ -684,7 +684,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Remplissage des sélecteurs
     selClient.innerHTML = store.data.clients.map(c => `
-      <option value="${c.id}">${escapeHtml(c.nom)} (${c.telephone})</option>
+      <option value="${c.id}">${escapeHtml(c.nom || 'Sans nom')} (${escapeHtml(c.telephone || 'sans numéro')})</option>
     `).join('');
 
     selCompte.innerHTML = store.data.comptes.map(c => `
@@ -824,7 +824,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let clients = store.data.clients;
     if (searchTerm) {
       clients = clients.filter(c => 
-        c.nom.toLowerCase().includes(searchTerm) ||
+        (c.nom || '').toLowerCase().includes(searchTerm) ||
         (c.telephone && c.telephone.toLowerCase().includes(searchTerm)) ||
         (c.ancienId && c.ancienId.toLowerCase().includes(searchTerm))
       );
@@ -837,7 +837,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return `
         <tr>
           <td>
-            <strong>${escapeHtml(c.nom)}</strong>
+            <strong>${escapeHtml(c.nom || 'Sans nom')}</strong>
             ${c.ancienId ? `<span class="badge badge-neutral" style="margin-left: 4px;">${escapeHtml(c.ancienId)}</span>` : ''}
           </td>
           <td>${formatPhone(c.telephone)}</td>
@@ -916,8 +916,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!client) return;
       title.textContent = 'Modifier le client';
       inputEditId.value = client.id;
-      inputNom.value = client.nom;
-      inputTel.value = client.telephone;
+      inputNom.value = client.nom || '';
+      inputTel.value = client.telephone || '';
       inputAncienId.value = client.ancienId || '';
       selOrigine.value = client.origine || 'autre';
       inputNotes.value = client.notes || '';
@@ -942,10 +942,10 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       if (editId) {
         await store.updateClient(editId, { nom, telephone, ancienId, origine, notes });
-        store.logAction(currentSession?.name, 'MODIFICATION_CLIENT', `Fiche client ${nom} mise à jour`);
+        store.logAction(currentSession?.name, 'MODIFICATION_CLIENT', `Fiche client ${nom || 'sans nom'} mise à jour`);
       } else {
         await store.createClient({ nom, telephone, ancienId, origine, notes });
-        store.logAction(currentSession?.name, 'CREATION_CLIENT', `Client ${nom} créé`);
+        store.logAction(currentSession?.name, 'CREATION_CLIENT', `Client ${nom || 'sans nom'} créé`);
       }
 
       document.getElementById('modal-client').classList.remove('active');
@@ -1365,7 +1365,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (elCaisseReelle) elCaisseReelle.textContent = `${formatFCFA(kpis.caisseReelle)} FCFA`;
     if (elEcart) {
       elEcart.textContent = `${formatFCFA(kpis.ecartCaisse)} FCFA`;
-      elEcart.className = kpis.ecartCaisse > 0 ? 'text-danger font-bold' : 'text-success font-bold';
+      elEcart.className = kpis.ecartCaisse < 0 ? 'text-danger font-bold' : 'text-success font-bold';
     }
 
     const mvtBody = document.getElementById('table-mouvements-caisse-body');
@@ -1433,6 +1433,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const selAssocie = document.getElementById('cash-associe');
     const beneficiaryGroup = document.getElementById('cash-beneficiaire-group');
     const partnerGroup = document.getElementById('cash-associe-group');
+    const inputDate = document.getElementById('cash-date');
     const inputMontant = document.getElementById('cash-montant');
     const inputMotif = document.getElementById('cash-motif');
     const motifLabel = document.getElementById('cash-motif-label');
@@ -1462,12 +1463,14 @@ document.addEventListener('DOMContentLoaded', () => {
         selAssocie.add(legacyOption);
       }
       if (selAssocie) selAssocie.value = m.beneficiaire;
+      inputDate.value = m.date || new Date().toISOString().slice(0, 10);
       inputMontant.value = m.montant;
       inputMotif.value = m.motif;
     } else {
       title.textContent = 'Enregistrer une opération de caisse';
       inputEditId.value = '';
       form.reset();
+      inputDate.value = new Date().toISOString().slice(0, 10);
       inputMontant.value = '';
     }
 
@@ -1494,6 +1497,7 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     const editId = document.getElementById('cash-edit-id').value;
     const type = document.getElementById('cash-type-select').value;
+    const date = document.getElementById('cash-date').value || new Date().toISOString().slice(0, 10);
     const beneficiaire = type === 'depense_associe'
       ? document.getElementById('cash-associe').value
       : document.getElementById('cash-beneficiaire').value.trim();
@@ -1501,21 +1505,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const motif = document.getElementById('cash-motif').value.trim();
 
     try {
-      if (type === 'pointage') {
-        await store.updateCaissePointage(montant, motif);
-        store.logAction(currentSession?.name, 'POINTAGE_CAISSE', `Pointage caisse réelle : ${montant} FCFA`);
+      if ((type === 'depense_justifiee' || type === 'autre') && !motif) {
+        showToast('Le motif est obligatoire pour une dépense justifiée.', 'warning');
+        return;
+      }
+      if (editId) {
+        await store.updateMouvementCaisse(editId, { type, beneficiaire, montant, motif, date });
+        store.logAction(currentSession?.name, 'MODIFICATION_CAISSE', `Mouvement ${type} de ${montant} FCFA modifié`);
       } else {
-        if ((type === 'depense_justifiee' || type === 'autre') && !motif) {
-          showToast('Le motif est obligatoire pour une dépense justifiée.', 'warning');
-          return;
-        }
-        if (editId) {
-          await store.updateMouvementCaisse(editId, { type, beneficiaire, montant, motif });
-          store.logAction(currentSession?.name, 'MODIFICATION_CAISSE', `Mouvement ${type} de ${montant} FCFA modifié`);
-        } else {
-          await store.createMouvementCaisse({ type, beneficiaire, montant, motif });
-          store.logAction(currentSession?.name, 'MOUVEMENT_CAISSE', `Nouveau ${type} de ${montant} FCFA`);
-        }
+        await store.createMouvementCaisse({ type, beneficiaire, montant, motif, date });
+        store.logAction(currentSession?.name, 'MOUVEMENT_CAISSE', `Nouveau ${type} de ${montant} FCFA`);
       }
 
       document.getElementById('modal-cash').classList.remove('active');
@@ -1640,7 +1639,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const title = document.getElementById('drawer-client-name');
     const body = document.getElementById('drawer-client-content');
 
-    if (title) title.textContent = client.nom;
+    if (title)     title.textContent = client.nom || 'Client sans nom';
 
     const subs = store.data.abonnements.filter(ab => ab.clientId === client.id);
     const totalPaye = subs.reduce((sum, ab) => sum + ab.tarif, 0);
@@ -1917,8 +1916,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const urgentRows = (urgents || []).map(item => {
       const isExpired = item.status.code === 'expire';
       return `<tr style="background: ${isExpired ? '#fef2f2' : '#fffbeb'};">
-        <td><strong style="color: ${isExpired ? '#b91c1c' : '#b45309'};">${escapeHtml(item.client.nom)}</strong></td>
-        <td>${escapeHtml(item.client.telephone)}</td>
+        <td><strong style="color: ${isExpired ? '#b91c1c' : '#b45309'};">${escapeHtml(item.client.nom || 'Sans nom')}</strong></td>
+        <td>${escapeHtml(item.client.telephone || '-')}</td>
         <td>${escapeHtml(item.compte.libelle)} / ${escapeHtml(item.profil.nom)}</td>
         <td><strong>${escapeHtml(item.dateFin)}</strong></td>
         <td><span style="font-weight: bold; color: ${isExpired ? '#dc2626' : '#d97706'};">${isExpired ? '⚠️ Expiré il y a ' + Math.abs(item.status.daysLeft) + 'j' : '⏳ Expire dans ' + item.status.daysLeft + 'j'}</span></td>
@@ -2290,8 +2289,8 @@ document.addEventListener('DOMContentLoaded', () => {
           </thead>
           <tbody>
             ${clientStats.map(c => `<tr>
-              <td><strong>${escapeHtml(c.nom)}</strong></td>
-              <td>${escapeHtml(c.telephone)}</td>
+              <td><strong>${escapeHtml(c.nom || 'Sans nom')}</strong></td>
+              <td>${escapeHtml(c.telephone || '-')}</td>
               <td>${escapeHtml(c.ancienId || '-')}</td>
               <td style="text-align: center; font-weight: bold;">${c.activeCount} actif(s)</td>
               <td style="text-align: right; font-weight: bold; color: #047857;">${formatFCFA(c.totalTarif)}</td>
@@ -2444,7 +2443,7 @@ document.addEventListener('DOMContentLoaded', () => {
     container.innerHTML = urgents.map(item => `
       <div class="m-card ${item.status.code === 'echu' ? 'm-card-danger' : 'm-card-urgent'}">
         <div class="m-card-row">
-          <div class="m-card-title">${escapeHtml(item.client.nom)}</div>
+          <div class="m-card-title">${escapeHtml(item.client.nom || 'Sans nom')}</div>
           <span class="badge ${item.status.badgeClass}">${item.status.label}</span>
         </div>
         <div class="m-card-subtitle">${formatPhone(item.client.telephone)}</div>
@@ -2504,7 +2503,7 @@ document.addEventListener('DOMContentLoaded', () => {
     container.innerHTML = filtered.map(item => `
       <div class="m-card ${item.status.isUrgent ? (item.status.code === 'echu' ? 'm-card-danger' : 'm-card-urgent') : ''}">
         <div class="m-card-row">
-          <div class="m-card-title">${escapeHtml(item.client.nom)}</div>
+          <div class="m-card-title">${escapeHtml(item.client.nom || 'Sans nom')}</div>
           <span class="badge ${item.status.badgeClass}">${item.status.label}</span>
         </div>
         <div class="m-card-subtitle">${formatPhone(item.client.telephone)}</div>
@@ -2573,7 +2572,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="m-card">
           <div class="m-card-row">
             <div>
-              <div class="m-card-title">${escapeHtml(c.nom)}</div>
+              <div class="m-card-title">${escapeHtml(c.nom || 'Sans nom')}</div>
               ${c.ancienId ? `<span class="badge badge-neutral">${escapeHtml(c.ancienId)}</span>` : ''}
             </div>
             <span class="badge badge-info">${clientSubs.length} ab.</span>

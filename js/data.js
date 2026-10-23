@@ -37,8 +37,6 @@ const EMPTY_DATA = {
   clients: [],
   abonnements: [],
   caisse: {
-    dernierPointageReel: 0,
-    dateDernierPointage: '2026-10-22',
     notes: ''
   },
   mouvementsCaisse: [],
@@ -390,8 +388,8 @@ class DataStore {
   async createClient(clientData) {
     const newClient = {
       id: 'cli-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 4),
-      nom: clientData.nom.trim(),
-      telephone: clientData.telephone.trim(),
+      nom: String(clientData.nom || '').trim(),
+      telephone: String(clientData.telephone || '').trim(),
       ancienId: clientData.ancienId ? clientData.ancienId.trim() : '',
       notes: clientData.notes ? clientData.notes.trim() : ''
     };
@@ -399,7 +397,7 @@ class DataStore {
     await this.apiRequest('/api/clients', {
       method: 'POST',
       body: newClient
-    }, `Ajout client (${newClient.nom})`);
+    }, `Ajout client (${newClient.nom || 'sans nom'})`);
 
     this.data.clients.unshift(newClient);
     return newClient;
@@ -414,7 +412,7 @@ class DataStore {
     await this.apiRequest(`/api/clients/${id}`, {
       method: 'PUT',
       body: updated
-    }, `Mise à jour client (${updated.nom})`);
+    }, `Mise à jour client (${updated.nom || 'sans nom'})`);
 
     this.data.clients[idx] = updated;
     return updated;
@@ -702,7 +700,7 @@ class DataStore {
       .reduce((sum, m) => sum + (Number(m.montant) || 0), 0);
 
     const caisseTheorique = caTotal - rechargesTotal - depensesTotal;
-    const caisseReelle = (this.data.caisse && this.data.caisse.dernierPointageReel) || 0;
+    const caisseReelle = Number(this.data.caisse?.dernierPointageReel ?? 0);
     const ecartCaisse = caisseReelle - caisseTheorique;
     const beneficeMois = Math.max(0, caTotal - rechargesTotal);
     const margePctMois = caTotal > 0 ? Math.round((beneficeMois / caTotal) * 100) : 0;
