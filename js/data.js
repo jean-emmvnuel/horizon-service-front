@@ -655,10 +655,9 @@ class DataStore {
   }
 
   getHistoriqueMensuel() {
-    const FIXED_RECHARGE_MENSUEL = 1500;
     const months = [];
     const now = new Date();
-    const monthCount = 6;
+    const monthCount = 12;
 
     for (let offset = monthCount - 1; offset >= 0; offset -= 1) {
       const d = new Date(now.getFullYear(), now.getMonth() - offset, 1);
@@ -700,12 +699,20 @@ class DataStore {
           const isActiveInMonth = start <= monthEnd && end >= monthStart;
           if (isActiveInMonth) {
             addValueToMonth(monthKey, 'ca', tarif);
-            addValueToMonth(monthKey, 'recharge', FIXED_RECHARGE_MENSUEL);
           }
         }
         cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
       }
     });
+
+    (this.data.mouvementsCaisse || [])
+      .filter(mouvement => mouvement.type === 'recharge')
+      .forEach(mouvement => {
+        const monthKey = String(mouvement.date || '').slice(0, 7);
+        if (/^\d{4}-(0[1-9]|1[0-2])$/.test(monthKey)) {
+          addValueToMonth(monthKey, 'recharge', Math.abs(Number(mouvement.montant) || 0));
+        }
+      });
 
     const finalData = months.map(item => {
       const benefice = Math.max(0, item.ca - item.recharge);
