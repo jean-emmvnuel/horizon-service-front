@@ -605,9 +605,12 @@ class DataStore {
       body: payload
     }, 'Mise à jour pointage caisse');
 
-    this.data.caisse.dernierPointageReel = payload.dernierPointageReel;
-    this.data.caisse.dateDernierPointage = payload.dateDernierPointage;
-    this.data.caisse.notes = notes;
+    this.data.caisse = {
+      ...(this.data.caisse || {}),
+      dernierPointageReel: payload.dernierPointageReel,
+      dateDernierPointage: payload.dateDernierPointage,
+      notes
+    };
     return this.data.caisse;
   }
 
@@ -700,8 +703,8 @@ class DataStore {
       .reduce((sum, m) => sum + (Number(m.montant) || 0), 0);
 
     const caisseTheorique = caTotal - rechargesTotal - depensesTotal;
-    const caisseReelle = Number(this.data.caisse?.dernierPointageReel ?? 0);
-    const ecartCaisse = caisseReelle - caisseTheorique;
+    const caisseReelle = 0;
+    const ecartCaisse = caisseTheorique;
     const beneficeMois = Math.max(0, caTotal - rechargesTotal);
     const margePctMois = caTotal > 0 ? Math.round((beneficeMois / caTotal) * 100) : 0;
 

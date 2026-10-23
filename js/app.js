@@ -1358,11 +1358,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const elCaisseTheo = document.getElementById('fin-caisse-theorique');
-    const elCaisseReelle = document.getElementById('fin-caisse-reelle');
     const elEcart = document.getElementById('fin-caisse-ecart');
 
     if (elCaisseTheo) elCaisseTheo.textContent = `${formatFCFA(kpis.caisseTheorique)} FCFA`;
-    if (elCaisseReelle) elCaisseReelle.textContent = `${formatFCFA(kpis.caisseReelle)} FCFA`;
     if (elEcart) {
       elEcart.textContent = `${formatFCFA(kpis.ecartCaisse)} FCFA`;
       elEcart.className = kpis.ecartCaisse < 0 ? 'text-danger font-bold' : 'text-success font-bold';
@@ -2161,9 +2159,9 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="kpi-sub">Marge bénéficiaire nette : <strong>${kpis.margePctMois}%</strong></div>
           </div>
           <div class="kpi-box">
-            <div class="kpi-title">Solde Caisse Contrôlé</div>
-            <div class="kpi-value">${formatFCFA(kpis.caisseReelle)}</div>
-            <div class="kpi-sub">Écart caisse: <strong>${kpis.ecartCaisse >= 0 ? '+' : ''}${formatFCFA(kpis.ecartCaisse)}</strong></div>
+              <div class="kpi-title">Écart calculé</div>
+              <div class="kpi-value">${formatFCFA(kpis.ecartCaisse)}</div>
+              <div class="kpi-sub">CA total − dépenses enregistrées</div>
           </div>
           <div class="kpi-box">
             <div class="kpi-title">Taux d'Occupation du Parc</div>
@@ -2203,17 +2201,15 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
 
         <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 12px; margin-bottom: 12px;">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
             <div>
-              <strong>Dernier Pointage Physique Réel Certifié :</strong> ${formatFCFA(kpis.caisseReelle)}
-              <span style="color: #64748b; margin-left: 8px;">(Date : ${escapeHtml(data.caisse?.dateDernierPointage || '-')})</span>
+              <strong>Chiffre d'affaires total :</strong> ${formatFCFA(kpis.caTotal)}
             </div>
             <div>
-              <strong>Solde Théorique Calculé :</strong> ${formatFCFA(kpis.caisseTheorique)}
+              <strong>Solde théorique calculé :</strong> ${formatFCFA(kpis.caisseTheorique)}
               <span style="margin-left: 8px; font-weight: bold; color: ${kpis.ecartCaisse >= 0 ? '#047857' : '#b91c1c'};">Écart : ${kpis.ecartCaisse >= 0 ? '+' : ''}${formatFCFA(kpis.ecartCaisse)}</span>
             </div>
           </div>
-          ${data.caisse?.notes ? `<div style="font-size: 9px; color: #475569; margin-top: 4px;"><em>Notes de caisse : ${escapeHtml(data.caisse.notes)}</em></div>` : ''}
         </div>
 
         <!-- DERNIERS MOUVEMENTS DE CAISSE -->
