@@ -11,6 +11,7 @@ const API_BASE = (typeof window !== 'undefined' && window.HORIZON_CONFIG && wind
   : 'https://horizon-service.onrender.com';
 
 const SESSION_KEY = 'horizon_service_session_v2';
+const BUSINESS_START_DATE = '2026-03-27';
 
 // Les données métier restent en mémoire ; localStorage ne conserve que la session de connexion.
 try {
@@ -654,18 +655,52 @@ class DataStore {
       });
   }
 
-  getHistoriqueMensuel() {
-    const months = [];
-    const now = new Date();
-    const monthCount = 12;
+  getPeriodeComptable(referenceDate = new Date()) {
+    const businessStart = this.parseBusinessDate(BUSINESS_START_DATE);
+    const reference = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
+    const today = new Date(reference.getFullYear(), reference.getMonth(), reference.getDate());
+    let start = new Date(today.getFullYear(), today.getMonth(), 27);
 
-    for (let offset = monthCount - 1; offset >= 0; offset -= 1) {
-      const d = new Date(now.getFullYear(), now.getMonth() - offset, 1);
-      const id = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const label = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-      months.push({
+    if (today.getDate() < 27) {
+      start = new Date(today.getFullYear(), today.getMonth() - 1, 27);
+    }
+    if (start < businessStart) {
+      start = businessStart;
+    }
+
+    return {
+      start,
+      end: new Date(start.getFullYear(), start.getMonth() + 1, 27)
+    };
+  }
+
+  parseBusinessDate(value) {
+    const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    }
+
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime())
+      ? null
+      : new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  }
+
+  getHistoriqueMensuel() {
+    const currentPeriod = this.getPeriodeComptable();
+    const periods = [];
+
+    for (let start = this.parseBusinessDate(BUSINESS_START_DATE); start <= currentPeriod.start; start = new Date(start.getFullYear(), start.getMonth() + 1, 27)) {
+      const end = new Date(start.getFullYear(), start.getMonth() + 1, 27);
+      const formatDate = date => date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+      const id = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
+      const rangeLabel = `${formatDate(start)} – ${formatDate(end)} ${end.getFullYear()}`;
+      periods.push({
         id,
-        label: label.charAt(0).toUpperCase() + label.slice(1),
+        label: rangeLabel.charAt(0).toUpperCase() + rangeLabel.slice(1),
+        shortLabel: start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
+        start,
+        end,
         ca: 0,
         recharge: 0,
         benefice: 0,
@@ -673,58 +708,35 @@ class DataStore {
       });
     }
 
-    const monthMap = new Map(months.map(m => [m.id, m]));
-
-    const addValueToMonth = (monthKey, key, value) => {
-      if (!monthKey || !monthMap.has(monthKey)) return;
-      const item = monthMap.get(monthKey);
-      item[key] += Number(value) || 0;
-    };
-
     (this.data.abonnements || []).forEach(ab => {
-      const start = ab.dateDebut ? new Date(ab.dateDebut) : new Date();
-      const end = ab.dateFin ? new Date(ab.dateFin) : new Date(start);
-      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
+      const start = this.parseBusinessDate(ab.dateDebut);
+      const end = this.parseBusinessDate(ab.dateFin);
+      if (!start || !end) return;
 
       const tarif = Number(ab.tarif) || 0;
-      const monthStartLimit = new Date(start.getFullYear(), start.getMonth(), 1);
-      const monthEndLimit = new Date(end.getFullYear(), end.getMonth() + 1, 0, 23, 59, 59, 999);
-
-      let cursor = new Date(monthStartLimit);
-      while (cursor <= monthEndLimit) {
-        const monthKey = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`;
-        if (monthMap.has(monthKey)) {
-          const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
-          const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 23, 59, 59, 999);
-          const isActiveInMonth = start <= monthEnd && end >= monthStart;
-          if (isActiveInMonth) {
-            addValueToMonth(monthKey, 'ca', tarif);
-          }
+      periods.forEach(period => {
+        if (start < period.end && end > period.start) {
+          period.ca += tarif;
         }
-        cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
-      }
+      });
     });
 
     (this.data.mouvementsCaisse || [])
       .filter(mouvement => mouvement.type === 'recharge')
       .forEach(mouvement => {
-        const monthKey = String(mouvement.date || '').slice(0, 7);
-        if (/^\d{4}-(0[1-9]|1[0-2])$/.test(monthKey)) {
-          addValueToMonth(monthKey, 'recharge', Math.abs(Number(mouvement.montant) || 0));
+        const date = this.parseBusinessDate(mouvement.date);
+        if (!date) return;
+        const period = periods.find(item => date >= item.start && date < item.end);
+        if (period) {
+          period.recharge += Math.abs(Number(mouvement.montant) || 0);
         }
       });
 
-    const finalData = months.map(item => {
-      const benefice = Math.max(0, item.ca - item.recharge);
-      const margePct = item.ca > 0 ? Math.round((benefice / item.ca) * 100) : 0;
-      return {
-        ...item,
-        benefice,
-        margePct
-      };
+    return periods.map(period => {
+      const benefice = period.ca - period.recharge;
+      const margePct = period.ca > 0 ? Math.round((benefice / period.ca) * 100) : 0;
+      return { ...period, benefice, margePct };
     });
-
-    return finalData;
   }
 
   getKPIs() {
@@ -750,13 +762,21 @@ class DataStore {
     const caisseTheorique = caTotal - rechargesTotal - depensesTotal;
     const caisseReelle = 0;
     const ecartCaisse = caisseTheorique;
-    const beneficeMois = Math.max(0, caTotal - rechargesTotal);
-    const margePctMois = caTotal > 0 ? Math.round((beneficeMois / caTotal) * 100) : 0;
+    const currentPeriod = this.getPeriodeComptable();
+    const currentPeriodId = `${currentPeriod.start.getFullYear()}-${String(currentPeriod.start.getMonth() + 1).padStart(2, '0')}-${String(currentPeriod.start.getDate()).padStart(2, '0')}`;
+    const currentPeriodStats = this.getHistoriqueMensuel().find(period => period.id === currentPeriodId);
+    const caMois = currentPeriodStats ? currentPeriodStats.ca : 0;
+    const beneficeMois = currentPeriodStats ? currentPeriodStats.benefice : 0;
+    const margePctMois = caMois > 0 ? Math.round((beneficeMois / caMois) * 100) : 0;
+    const periodeMoisLabel = currentPeriod.start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+      + ' – '
+      + currentPeriod.end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 
     return {
-      caMois: caTotal,
+      caMois,
       beneficeMois,
       margePctMois,
+      periodeMoisLabel,
       tauxOccupationGlobal: tauxRemplissage,
       totalAbonnements: totalAbonnementsActifs,
       capaciteTotale: placesMax,

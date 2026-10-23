@@ -360,14 +360,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const groupX = paddingLeft + (idx * barGroupWidth) + (barGroupWidth / 2);
 
       const hCA = (d.ca / ceiling) * chartHeight;
-      const hBen = (d.benefice / ceiling) * chartHeight;
+      const hBen = (Math.max(0, d.benefice) / ceiling) * chartHeight;
       const hRec = (d.recharge / ceiling) * chartHeight;
 
       const yCA = paddingTop + chartHeight - hCA;
       const yBen = paddingTop + chartHeight - hBen;
       const yRec = paddingTop + chartHeight - hRec;
 
-      const shortLabel = d.label.split(' ')[0].substring(0, 4);
+      const shortLabel = d.shortLabel || d.label.split(' ')[0].substring(0, 4);
 
       barsSvg += `
         <!-- Groupe Mois ${d.label} -->
@@ -458,14 +458,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const kpiCaMois = document.getElementById('kpi-ca-mois');
     const kpiBeneficeMois = document.getElementById('kpi-benefice-mois');
     const kpiMargeMois = document.getElementById('kpi-marge-mois');
+    const kpiCaCumul = document.getElementById('kpi-ca-cumul');
+    const kpiBeneficeCumul = document.getElementById('kpi-benefice-cumul');
     const kpiOccupation = document.getElementById('kpi-occupation');
     const kpiPlacesLibres = document.getElementById('kpi-places-libres');
     const kpiCaisseTheorique = document.getElementById('kpi-caisse-theorique');
     const kpiEcartCaisse = document.getElementById('kpi-ecart-caisse');
 
     if (kpiCaMois) kpiCaMois.textContent = `${formatFCFA(kpis.caMois)} FCFA`;
-    if (kpiBeneficeMois) kpiBeneficeMois.textContent = `${formatFCFA(kpis.beneficeMois)} FCFA`;
+    if (kpiBeneficeMois) {
+      kpiBeneficeMois.textContent = `${formatFCFA(kpis.beneficeMois)} FCFA`;
+      kpiBeneficeMois.className = kpis.beneficeMois < 0 ? 'kpi-value text-danger' : 'kpi-value text-success';
+    }
     if (kpiMargeMois) kpiMargeMois.textContent = `${kpis.margePctMois}%`;
+    if (kpiCaCumul) kpiCaCumul.textContent = `Cycle du ${kpis.periodeMoisLabel}`;
+    if (kpiBeneficeCumul) kpiBeneficeCumul.textContent = `Cycle du ${kpis.periodeMoisLabel} — après déduction des recharges`;
     if (kpiOccupation) kpiOccupation.textContent = `${kpis.tauxOccupationGlobal}% (${kpis.totalAbonnements}/${kpis.capaciteTotale})`;
     if (kpiPlacesLibres) kpiPlacesLibres.textContent = `${kpis.placesLibres} place${kpis.placesLibres > 1 ? 's' : ''} libre${kpis.placesLibres > 1 ? 's' : ''}`;
     if (kpiCaisseTheorique) kpiCaisseTheorique.textContent = `${formatFCFA(kpis.caisseTheorique)} FCFA`;
