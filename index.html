@@ -161,7 +161,7 @@
 
       <button class="tab-btn" data-tab="tab-settings" role="tab">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        <span>Paramètres & Relances</span>
+        <span>Exports</span>
       </button>
 
       <button class="tab-btn" data-tab="tab-audit" role="tab">
@@ -197,7 +197,7 @@
           <div class="kpi-card">
             <div class="kpi-header">
               <span class="kpi-code">K01 — Chiffre d'affaires</span>
-              <span class="badge badge-neutral">Octobre 2026</span>
+              <span class="badge badge-neutral">Mois courant</span>
             </div>
             <div id="kpi-ca-mois" class="kpi-value">0 FCFA</div>
             <div class="kpi-subtext" id="kpi-ca-cumul">Cumul annuel consolidé</div>
@@ -254,7 +254,7 @@
           <!-- Graphique 1 : Évolution Chiffre d'Affaires vs Bénéfice vs Recharge -->
           <div class="chart-card">
             <div class="chart-header">
-              <h3 class="card-title">Performance financière (Avril à Octobre 2026)</h3>
+              <h3 class="card-title">Performance financière du mois courant</h3>
               <div class="chart-legend">
                 <div class="legend-item"><span class="legend-dot" style="background: var(--chart-color-ca);"></span> CA</div>
                 <div class="legend-item"><span class="legend-dot" style="background: var(--chart-color-benefice);"></span> Bénéfice</div>
@@ -288,7 +288,7 @@
             <span class="badge badge-warning">Action prioritaire</span>
           </div>
           <p class="text-sm text-secondary" style="margin-bottom: var(--space-4);">
-            Ces abonnements arrivent à terme dans les 7 jours ou sont échus. Utilisez le bouton WhatsApp pour envoyer un rappel pré-rempli sans rupture d'accès.
+            Ces abonnements arrivent à terme dans les 7 jours ou sont échus. Vous pouvez ouvrir leur fiche ou renouveler immédiatement l'abonnement.
           </p>
 
           <div class="table-responsive">
@@ -494,7 +494,7 @@
         <div class="admin-header-row">
           <div class="admin-title-group">
             <h2>Caisse &amp; Mouvements Financiers (CRUD)</h2>
-            <p class="text-muted">Pointage réel, calcul automatique de l'écart, gestion des recharges et prélèvements d'associés.</p>
+            <p class="text-muted">Suivi du pointage, des dépenses de recharge, des dépenses de chaque associé et des dépenses justifiées.</p>
           </div>
           <div style="display:flex; gap: var(--space-2); align-items: center;">
             <button id="btn-refresh-finances" class="btn btn-secondary btn-icon" title="Rafraîchir">
@@ -515,15 +515,17 @@
             </div>
             <div style="display: flex; flex-direction: column; gap: var(--space-3); font-size: var(--text-sm);">
               <div style="display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle);">
-                <span class="text-muted">Bénéfice cumulé théorique :</span>
+                <span class="text-muted">Bénéfice théorique (après recharges) :</span>
                 <span id="fin-benefice-cumule" class="font-bold">0 FCFA</span>
               </div>
-              <div id="fin-prelevements-details" style="display: flex; flex-direction: column; gap: var(--space-3);">
+              <div id="fin-recharges-details" style="display: flex; flex-direction: column; gap: var(--space-3);"></div>
+              <div id="fin-associes-details" style="display: flex; flex-direction: column; gap: var(--space-3);">
                 <div style="display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle);">
-                  <span class="text-muted" id="fin-label-prelevement-user">Total Prélèvements Utilisateur :</span>
-                  <span id="fin-val-prelevement-user" class="font-bold">0 FCFA</span>
+                  <span class="text-muted">Dépenses des associés :</span>
+                  <span class="font-bold">0 FCFA</span>
                 </div>
               </div>
+              <div id="fin-depenses-justifiees" style="display: flex; flex-direction: column; gap: var(--space-3);"></div>
               <div style="display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle);">
                 <span class="text-muted">Caisse théorique attendue :</span>
                 <span id="fin-caisse-theorique" class="font-bold text-white">0 FCFA</span>
@@ -568,90 +570,19 @@
         </div>
       </section>
 
-      <!-- ==================== ONGLET 6 : PARAMÈTRES & RELANCES ==================== -->
+      <!-- ==================== ONGLET 6 : EXPORTS ==================== -->
       <section id="tab-settings" class="admin-tab-pane" style="display: none;">
         <div class="admin-header-row">
           <div class="admin-title-group">
-            <h2>Paramètres & Modèle de Relance WhatsApp</h2>
-            <p class="text-muted">Personnalisez votre message automatique de relance, vos liens de paiement (Wave, OM) et préférences.</p>
+            <h2>Exports & sauvegardes</h2>
+            <p class="text-muted">Téléchargez les rapports et sauvegardes des données enregistrées.</p>
+          </div>
           <div style="display:flex; gap: var(--space-2); align-items: center;">
             <button id="btn-refresh-settings" class="btn btn-secondary btn-icon" title="Rafraîchir">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
               <span>Rafraîchir</span>
             </button>
           </div>
-        </div>
-
-        <!-- CARTE : Configuration du message de relance & paiement -->
-        <div class="card" style="margin-bottom: var(--space-6);">
-          <div class="card-header">
-            <h3 class="card-title">Modèle de relance WhatsApp automatique</h3>
-            <span class="badge badge-success">WhatsApp Prêt</span>
-          </div>
-
-          <form id="form-relance-settings">
-            <div style="background: var(--bg-surface-elevated); padding: var(--space-4); border-radius: var(--radius-md); margin-bottom: var(--space-4); border: 1px solid var(--border-subtle);">
-              <div style="font-weight: 700; font-size: var(--text-sm); margin-bottom: var(--space-3); color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
-                <span>💳</span>
-                <span>Liens de paiement individuels des Associés (Wave, Orange Money, MoMo)</span>
-              </div>
-              <p class="text-xs text-muted" style="margin-bottom: var(--space-3);">
-                Chaque associé dispose de son propre lien de paiement pour les relances. Le lien sélectionné remplacera automatiquement <code>{lienPaiement}</code> dans les messages WhatsApp.
-              </p>
-
-              <div class="form-row">
-                <div class="form-group" style="margin-bottom: var(--space-2);">
-                  <label class="form-label" for="setting-payment-link-emmanuel">Lien Emmanuel (Fondateur) *</label>
-                  <input type="url" id="setting-payment-link-emmanuel" class="form-control font-mono" placeholder="https://pay.wave.com/m/horizon-service-emmanuel" required>
-                </div>
-                <div class="form-group" style="margin-bottom: var(--space-2);">
-                  <label class="form-label" for="setting-payment-link-malan">Lien Malan Abdias (Associé) *</label>
-                  <input type="url" id="setting-payment-link-malan" class="form-control font-mono" placeholder="https://pay.wave.com/m/horizon-service-malan" required>
-                </div>
-              </div>
-              <input type="hidden" id="setting-payment-link" value="https://pay.wave.com/m/horizon-service">
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" for="setting-message-template">Texte du modèle de relance (variables automatiques)</label>
-              <div style="margin-bottom: var(--space-2); display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center;">
-                <span class="text-xs text-muted">Cliquez pour insérer :</span>
-                <button type="button" class="btn btn-xs btn-outline btn-tag" data-tag="{nom}">{nom}</button>
-                <button type="button" class="btn btn-xs btn-outline btn-tag" data-tag="{dateFin}">{dateFin}</button>
-                <button type="button" class="btn btn-xs btn-outline btn-tag" data-tag="{tarif}">{tarif}</button>
-                <button type="button" class="btn btn-xs btn-outline btn-tag" data-tag="{lienPaiement}">{lienPaiement}</button>
-                <button type="button" class="btn btn-xs btn-outline btn-tag" data-tag="{compte}">{compte}</button>
-                <button type="button" class="btn btn-xs btn-outline btn-tag" data-tag="{profil}">{profil}</button>
-              </div>
-              <textarea id="setting-message-template" class="form-control" rows="6" style="resize: vertical; font-family: inherit; line-height: 1.5;" required></textarea>
-            </div>
-
-            <!-- APERÇU EN DIRECT DU MESSAGE -->
-            <div class="form-group">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                <label class="form-label" style="margin-bottom: 0;">Aperçu en direct (rendu réel que recevra le client)</label>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <span class="text-xs text-muted">Aperçu avec lien de :</span>
-                  <select id="setting-preview-sender-select" class="form-control" style="padding: 2px 8px; font-size: var(--text-xs); height: auto;">
-                    <option value="emmanuel">Emmanuel (Fondateur)</option>
-                    <option value="malan">Malan Abdias (Associé)</option>
-                  </select>
-                </div>
-              </div>
-              <div id="preview-relance-box" style="background-color: rgba(37, 211, 102, 0.08); border: 1px solid rgba(37, 211, 102, 0.3); border-radius: var(--radius-md); padding: var(--space-4); white-space: pre-wrap; font-size: var(--text-sm); line-height: 1.6; color: var(--text-primary);">
-              </div>
-            </div>
-
-            <div style="display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; justify-content: flex-end; margin-top: var(--space-4);">
-              <button type="button" id="btn-reset-relance-template" class="btn btn-secondary">
-                <span>Rétablir le modèle par défaut</span>
-              </button>
-              <button type="submit" class="btn btn-primary">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                <span>Enregistrer les paramètres de relance</span>
-              </button>
-            </div>
-          </form>
         </div>
 
         <!-- CARTE : Sauvegardes & Exports Officiels -->
@@ -747,7 +678,7 @@
       </button>
       <button class="bnav-btn" data-tab="tab-settings" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.32 9c.3.46.74.82 1.25.93H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        <span>Paramètres</span>
+        <span>Exports</span>
       </button>
       <button class="bnav-btn" data-tab="tab-audit" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -984,16 +915,24 @@
           <div class="form-group">
             <label class="form-label" for="cash-type-select">Type d'opération *</label>
             <select id="cash-type-select" class="form-control" required>
-              <option value="pointage">Pointage physique de caisse réelle</option>
-              <option value="recharge">Dépense de Recharge Netflix</option>
-              <option value="prelevement">Prélèvement Associé</option>
-              <option value="autre">Autre sortie de caisse</option>
+              <option value="recharge">Dépense de recharge</option>
+              <option value="depense_associe">Dépense d'un associé</option>
+              <option value="depense_justifiee">Autre dépense justifiée</option>
             </select>
           </div>
 
           <div class="form-group" id="cash-beneficiaire-group">
-            <label class="form-label" for="cash-beneficiaire">Bénéficiaire / Personne concernée</label>
-            <input type="text" id="cash-beneficiaire" class="form-control" placeholder="Ex: Emmanuel, Malan Abdias, Netflix...">
+            <label class="form-label" for="cash-beneficiaire">Compte ou bénéficiaire *</label>
+            <input type="text" id="cash-beneficiaire" class="form-control" placeholder="Ex. : compte Netflix ou bénéficiaire">
+          </div>
+
+          <div class="form-group" id="cash-associe-group" style="display: none;">
+            <label class="form-label" for="cash-associe">Associé concerné *</label>
+            <select id="cash-associe" class="form-control">
+              <option value="">Sélectionner l'associé</option>
+              <option value="Emmanuel">Emmanuel (Fondateur)</option>
+              <option value="Malan Abdias">Malan Abdias (Associé)</option>
+            </select>
           </div>
 
           <div class="form-group">
@@ -1002,86 +941,13 @@
           </div>
 
           <div class="form-group" id="cash-motif-group">
-            <label class="form-label" for="cash-motif">Motif / Justification</label>
-            <input type="text" id="cash-motif" class="form-control" placeholder="Ex: Prélèvement de bénéfice...">
+            <label class="form-label" id="cash-motif-label" for="cash-motif">Motif / Justification</label>
+            <input type="text" id="cash-motif" class="form-control" placeholder="Obligatoire pour une dépense justifiée">
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary btn-close-modal">Annuler</button>
           <button type="submit" class="btn btn-primary">Valider</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- 6. Modale de Relance WhatsApp Personnalisée -->
-  <div id="modal-relance" class="modal-backdrop" role="dialog" aria-modal="true">
-    <div class="modal-card">
-      <div class="modal-header">
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <span style="display: inline-flex; width: 32px; height: 32px; border-radius: 50%; background: #25d366; align-items: center; justify-content: center; color: white;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-          </span>
-          <h3 id="modal-relance-title" class="card-title">Relance WhatsApp</h3>
-        </div>
-        <button class="btn btn-icon btn-close-modal" aria-label="Fermer">✕</button>
-      </div>
-      <form id="form-relance-send">
-        <input type="hidden" id="relance-client-nom">
-        <input type="hidden" id="relance-date-fin">
-        <input type="hidden" id="relance-tarif">
-        <input type="hidden" id="relance-compte">
-        <input type="hidden" id="relance-profil">
-
-        <div class="modal-body">
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" for="relance-phone">Numéro WhatsApp du destinataire *</label>
-              <input type="tel" id="relance-phone" class="form-control" required placeholder="Ex: 2250700000000">
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="relance-sender-select">Lien de paiement de *</label>
-              <select id="relance-sender-select" class="form-control">
-                <option value="emmanuel">Emmanuel (Fondateur)</option>
-                <option value="malan">Malan Abdias (Associé)</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="relance-payment-link">Lien de paiement inséré dans le message</label>
-            <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
-              <input type="url" id="relance-payment-link" class="form-control" style="flex: 1; min-width: 220px;" placeholder="https://pay.wave.com/m/...">
-              <button type="button" class="btn btn-xs btn-outline" id="btn-relance-insert-emmanuel" style="align-self: center;">Lien Emmanuel</button>
-              <button type="button" class="btn btn-xs btn-outline" id="btn-relance-insert-malan" style="align-self: center;">Lien Malan</button>
-              <button type="button" class="btn btn-xs btn-outline" id="btn-relance-remove-link" style="align-self: center;">Sans lien</button>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="relance-message-content">Message à envoyer (modifiable librement avant envoi)</label>
-            <textarea id="relance-message-content" class="form-control" rows="6" style="line-height: 1.5; font-family: inherit;" required></textarea>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
-              <small class="text-muted" id="relance-char-count">0 caractères</small>
-              <button type="button" id="btn-relance-copy-text" class="btn btn-xs btn-secondary">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                <span>Copier le message</span>
-              </button>
-            </div>
-          </div>
-
-          <div style="display: flex; align-items: center; gap: 8px; margin-top: var(--space-2);">
-            <input type="checkbox" id="relance-save-template-check" style="cursor: pointer;">
-            <label for="relance-save-template-check" class="text-xs text-muted" style="cursor: pointer; margin-bottom: 0;">Mémoriser ce texte comme nouveau modèle par défaut</label>
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary btn-close-modal">Annuler</button>
-          <button type="submit" class="btn btn-whatsapp" style="display: flex; align-items: center; gap: 8px;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-            <span>Envoyer sur WhatsApp</span>
-          </button>
         </div>
       </form>
     </div>

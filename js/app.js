@@ -102,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
       window.scrollTo(0, 0);
     }
 
-    function showDashboard() {
+    async function showDashboard() {
       if (!currentSession) {
         showLogin();
         return;
@@ -110,6 +110,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (viewLogin) viewLogin.style.display = 'none';
       if (viewAdmin) viewAdmin.style.display = 'flex';
       updateUserSessionUI();
+      const initialData = await store.initialSync;
+      if (!initialData) {
+        try {
+          await store.syncFromBackend();
+        } catch (error) {
+          console.error('Impossible de charger les données après connexion :', error);
+        }
+      }
       renderAdmin();
       window.scrollTo(0, 0);
     }
@@ -204,10 +212,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function initAdminTabs() {
     const tabBtns = document.querySelectorAll('.admin-tabs-bar .tab-btn');
     tabBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const targetTab = btn.dataset.tab;
         if (!targetTab) return;
-        switchTab(targetTab);
+        await switchTab(targetTab);
       });
     });
   }
@@ -317,7 +325,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const container = document.getElementById('container-chart-monthly');
     if (!container) return;
 
-    const data = store.data.historiqueMensuel;
+    const data = store.getHistoriqueMensuel();
     if (!data || data.length === 0) return;
 
     const maxVal = Math.max(0, ...data.map(d => Math.max(d.ca || 0, d.recharge || 0, d.benefice || 0)));
@@ -395,16 +403,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const container = document.getElementById('container-chart-accounts');
     if (!container) return;
 
-    const comptes = store.data.comptes;
+    const comptes = store.data.comptes || [];
+    if (comptes.length === 0) {
+      container.innerHTML = '<div class="text-muted text-sm" style="padding: 1rem 0;">Aucun compte à afficher.</div>';
+      return;
+    }
     let itemsHtml = '';
 
     comptes.forEach(compte => {
-      const placesOccupees = store.data.abonnements.filter(ab => {
-        const p = store.data.profils.find(prof => prof.id === ab.profilId);
+      const placesOccupees = (store.data.abonnements || []).filter(ab => {
+        const p = (store.data.profils || []).find(prof => prof.id === ab.profilId);
         return p && p.compteId === compte.id;
       }).length;
 
-      const capacite = compte.capacitePlaces;
+      const capacite = Number(compte.capacitePlaces || compte.capacite || 15);
       const pct = Math.min(100, Math.round((placesOccupees / capacite) * 100));
       const isOverflow = placesOccupees > capacite;
 
@@ -491,9 +503,6 @@ document.addEventListener('DOMContentLoaded', () => {
             <td>${formatFCFA(item.tarif)} FCFA</td>
             <td>
               <div style="display: flex; gap: 6px;">
-                <button class="btn btn-sm btn-whatsapp btn-relance-wa" data-client-phone="${item.client.telephone}" data-client-nom="${escapeHtml(item.client.nom)}" data-date-fin="${formatDate(item.dateFin)}" data-tarif="${item.tarif}" data-compte="${escapeHtml(item.compte.libelle)}" data-profil="${escapeHtml(item.profil.nom)}" title="Envoyer rappel WhatsApp personnalisé">
-                  <span>Relancer</span>
-                </button>
                 <button class="btn btn-sm btn-secondary btn-renew-quick" data-sub-id="${item.id}" title="Renouveler immédiatement">
                   <span>Renouveler</span>
                 </button>
@@ -501,19 +510,6 @@ document.addEventListener('DOMContentLoaded', () => {
             </td>
           </tr>
         `).join('');
-
-        urgentsList.querySelectorAll('.btn-relance-wa').forEach(btn => {
-          btn.addEventListener('click', () => {
-            openRelanceModal({
-              clientNom: btn.dataset.clientNom,
-              clientPhone: btn.dataset.clientPhone,
-              dateFin: btn.dataset.dateFin,
-              tarif: Number(btn.dataset.tarif) || 1500,
-              compteLibelle: btn.dataset.compte,
-              profilNom: btn.dataset.profil
-            });
-          });
-        });
 
         urgentsList.querySelectorAll('.btn-renew-quick').forEach(btn => {
           btn.addEventListener('click', () => {
@@ -556,9 +552,10 @@ document.addEventListener('DOMContentLoaded', () => {
     renderCharts();
 
     // Rendu du tableau certifié
+    const historiqueMensuel = store.getHistoriqueMensuel();
     const tableBody = document.getElementById('table-historique-mensuel');
     if (tableBody) {
-      tableBody.innerHTML = store.data.historiqueMensuel.map(m => `
+      tableBody.innerHTML = historiqueMensuel.map(m => `
         <tr>
           <td><strong>${escapeHtml(m.label)}</strong></td>
           <td>${formatFCFA(m.ca)} FCFA</td>
@@ -1294,8 +1291,20 @@ document.addEventListener('DOMContentLoaded', () => {
   // -------------------------------------------------------------
   // 8. CRUD : Caisse & Finances
   // -------------------------------------------------------------
+  function cashMovementTypeLabel(type) {
+    const labels = {
+      recharge: 'Dépense de recharge',
+      prelevement: 'Dépense associé',
+      depense_associe: 'Dépense associé',
+      depense_justifiee: 'Dépense justifiée',
+      autre: 'Autre dépense (ancienne catégorie)'
+    };
+    return labels[type] || type;
+  }
+
   function renderFinancesTab() {
     const kpis = store.getKPIs();
+    const mouvements = store.data.mouvementsCaisse || [];
 
     const elBeneficeCumule = document.getElementById('fin-benefice-cumule');
     if (elBeneficeCumule) {
@@ -1303,32 +1312,49 @@ document.addEventListener('DOMContentLoaded', () => {
       elBeneficeCumule.textContent = `${formatFCFA(beneficeTheorique)} FCFA`;
     }
 
-    const prelevementsContainer = document.getElementById('fin-prelevements-details');
-    if (prelevementsContainer) {
-      const prelevements = (store.data.mouvementsCaisse || []).filter(m => m.type === 'prelevement');
-      const parBeneficiaire = {};
-      prelevements.forEach(m => {
-        const nom = (m.beneficiaire || (currentSession?.name || 'Utilisateur')).trim();
-        parBeneficiaire[nom] = (parBeneficiaire[nom] || 0) + (Number(m.montant) || 0);
-      });
+    const rechargeTotal = mouvements
+      .filter(m => m.type === 'recharge')
+      .reduce((sum, m) => sum + (Number(m.montant) || 0), 0);
+    const rechargesContainer = document.getElementById('fin-recharges-details');
+    if (rechargesContainer) {
+      rechargesContainer.innerHTML = `
+        <div style="display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle);">
+          <span class="text-muted">Dépenses de recharge :</span>
+          <span class="text-danger font-bold">-${formatFCFA(rechargeTotal)} FCFA</span>
+        </div>
+      `;
+    }
 
-      const noms = Object.keys(parBeneficiaire);
-      if (noms.length === 0) {
-        const defaultName = currentSession?.name || 'Utilisateur';
-        prelevementsContainer.innerHTML = `
-          <div style="display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle);">
-            <span class="text-muted">Total Prélèvements (${escapeHtml(defaultName)}) :</span>
-            <span class="font-bold">0 FCFA</span>
-          </div>
-        `;
-      } else {
-        prelevementsContainer.innerHTML = noms.map(nom => `
-          <div style="display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle);">
-            <span class="text-muted">Total Prélèvements (${escapeHtml(nom)}) :</span>
-            <span class="text-danger font-bold">-${formatFCFA(parBeneficiaire[nom])} FCFA</span>
-          </div>
-        `).join('');
-      }
+    const parAssocie = new Map([
+      ['Emmanuel', 0],
+      ['Malan Abdias', 0]
+    ]);
+    mouvements
+      .filter(m => m.type === 'prelevement' || m.type === 'depense_associe')
+      .forEach(m => {
+        const nom = (m.beneficiaire || 'Associé').trim();
+        parAssocie.set(nom, (parAssocie.get(nom) || 0) + (Number(m.montant) || 0));
+      });
+    const associesContainer = document.getElementById('fin-associes-details');
+    if (associesContainer) {
+      associesContainer.innerHTML = Array.from(parAssocie, ([nom, total]) => `
+        <div style="display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle);">
+          <span class="text-muted">Dépenses de ${escapeHtml(nom)} :</span>
+          <span class="text-danger font-bold">-${formatFCFA(total)} FCFA</span>
+        </div>
+      `).join('');
+    }
+
+    const depensesJustifiees = mouvements.filter(m => m.type === 'depense_justifiee');
+    const justifieesContainer = document.getElementById('fin-depenses-justifiees');
+    if (justifieesContainer) {
+      const total = depensesJustifiees.reduce((sum, m) => sum + (Number(m.montant) || 0), 0);
+      justifieesContainer.innerHTML = `
+        <div style="display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle);">
+          <span class="text-muted">Dépenses justifiées (${depensesJustifiees.length}) :</span>
+          <span class="text-danger font-bold">-${formatFCFA(total)} FCFA</span>
+        </div>
+      `;
     }
 
     const elCaisseTheo = document.getElementById('fin-caisse-theorique');
@@ -1344,17 +1370,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const mvtBody = document.getElementById('table-mouvements-caisse-body');
     if (mvtBody) {
-      mvtBody.innerHTML = store.data.mouvementsCaisse.map(m => `
+      mvtBody.innerHTML = mouvements.map(m => `
         <tr>
           <td>${formatDate(m.date)}</td>
           <td>
-            <span class="badge ${m.type === 'prelevement' ? 'badge-warning' : 'badge-danger'}">
-              ${m.type === 'prelevement' ? 'Prélèvement' : 'Recharge'}
+            <span class="badge ${m.type === 'recharge' ? 'badge-danger' : 'badge-warning'}">
+              ${escapeHtml(cashMovementTypeLabel(m.type))}
             </span>
           </td>
-          <td><strong>${escapeHtml(m.beneficiaire)}</strong></td>
+          <td><strong>${escapeHtml(m.beneficiaire || '—')}</strong></td>
           <td class="font-bold text-danger">-${formatFCFA(m.montant)} FCFA</td>
-          <td class="text-sm text-secondary">${escapeHtml(m.motif)}</td>
+          <td class="text-sm text-secondary">${escapeHtml(m.motif || '—')}</td>
           <td>
             <div class="btn-action-group">
               <button class="btn btn-xs btn-outline btn-edit-cash" data-cash-id="${m.id}" title="Modifier">
@@ -1394,6 +1420,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       });
     }
+    renderMobileMouvements();
   }
 
   function openCashModal(cashId = null) {
@@ -1403,18 +1430,38 @@ document.addEventListener('DOMContentLoaded', () => {
     const inputEditId = document.getElementById('cash-edit-id');
     const selType = document.getElementById('cash-type-select');
     const inputBenef = document.getElementById('cash-beneficiaire');
+    const selAssocie = document.getElementById('cash-associe');
+    const beneficiaryGroup = document.getElementById('cash-beneficiaire-group');
+    const partnerGroup = document.getElementById('cash-associe-group');
     const inputMontant = document.getElementById('cash-montant');
     const inputMotif = document.getElementById('cash-motif');
+    const motifLabel = document.getElementById('cash-motif-label');
 
     if (!modal) return;
+
+    if (selAssocie) {
+      selAssocie.querySelectorAll('[data-legacy-associate]').forEach(option => option.remove());
+    }
+    selType.querySelectorAll('[data-legacy-cash-type]').forEach(option => option.remove());
 
     if (cashId) {
       const m = store.data.mouvementsCaisse.find(mvt => mvt.id === cashId);
       if (!m) return;
       title.textContent = 'Modifier l\'opération de caisse';
       inputEditId.value = m.id;
-      selType.value = m.type;
+      if (m.type === 'autre') {
+        const legacyTypeOption = new Option(cashMovementTypeLabel(m.type), m.type);
+        legacyTypeOption.dataset.legacyCashType = 'true';
+        selType.add(legacyTypeOption);
+      }
+      selType.value = m.type === 'prelevement' ? 'depense_associe' : m.type;
       inputBenef.value = m.beneficiaire;
+      if (selAssocie && m.beneficiaire && !Array.from(selAssocie.options).some(option => option.value === m.beneficiaire)) {
+        const legacyOption = new Option(m.beneficiaire, m.beneficiaire);
+        legacyOption.dataset.legacyAssociate = 'true';
+        selAssocie.add(legacyOption);
+      }
+      if (selAssocie) selAssocie.value = m.beneficiaire;
       inputMontant.value = m.montant;
       inputMotif.value = m.motif;
     } else {
@@ -1422,18 +1469,23 @@ document.addEventListener('DOMContentLoaded', () => {
       inputEditId.value = '';
       form.reset();
       inputMontant.value = '';
-      if (selType.value === 'prelevement') {
-        inputBenef.value = currentSession?.name || '';
-      }
     }
 
-    selType.onchange = () => {
-      if (selType.value === 'prelevement' && (!inputBenef.value || inputBenef.value === 'Netflix')) {
-        inputBenef.value = currentSession?.name || '';
-      } else if (selType.value === 'recharge' && (!inputBenef.value || inputBenef.value === (currentSession?.name || ''))) {
+    const updateCashFields = () => {
+      const isPointage = selType.value === 'pointage';
+      const isPartnerExpense = selType.value === 'depense_associe';
+      beneficiaryGroup.style.display = isPointage || isPartnerExpense ? 'none' : '';
+      partnerGroup.style.display = isPartnerExpense ? '' : 'none';
+      inputBenef.required = !isPointage && !isPartnerExpense;
+      selAssocie.required = isPartnerExpense;
+      inputMotif.required = selType.value === 'depense_justifiee' || selType.value === 'autre';
+      motifLabel.textContent = inputMotif.required ? 'Motif / Justification *' : 'Motif / Justification';
+      if (selType.value === 'recharge' && (!inputBenef.value || inputBenef.value === currentSession?.name)) {
         inputBenef.value = 'Netflix';
       }
     };
+    selType.onchange = updateCashFields;
+    updateCashFields();
 
     modal.classList.add('active');
   }
@@ -1442,7 +1494,9 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     const editId = document.getElementById('cash-edit-id').value;
     const type = document.getElementById('cash-type-select').value;
-    const beneficiaire = document.getElementById('cash-beneficiaire').value.trim();
+    const beneficiaire = type === 'depense_associe'
+      ? document.getElementById('cash-associe').value
+      : document.getElementById('cash-beneficiaire').value.trim();
     const montant = parseInt(document.getElementById('cash-montant').value, 10);
     const motif = document.getElementById('cash-motif').value.trim();
 
@@ -1451,11 +1505,15 @@ document.addEventListener('DOMContentLoaded', () => {
         await store.updateCaissePointage(montant, motif);
         store.logAction(currentSession?.name, 'POINTAGE_CAISSE', `Pointage caisse réelle : ${montant} FCFA`);
       } else {
+        if ((type === 'depense_justifiee' || type === 'autre') && !motif) {
+          showToast('Le motif est obligatoire pour une dépense justifiée.', 'warning');
+          return;
+        }
         if (editId) {
-          await store.updateMouvementCaisse(editId, { type, beneficiaire: beneficiaire || (type === 'recharge' ? 'Netflix' : (currentSession?.name || 'Utilisateur')), montant, motif });
+          await store.updateMouvementCaisse(editId, { type, beneficiaire, montant, motif });
           store.logAction(currentSession?.name, 'MODIFICATION_CAISSE', `Mouvement ${type} de ${montant} FCFA modifié`);
         } else {
-          await store.createMouvementCaisse({ type, beneficiaire: beneficiaire || (type === 'recharge' ? 'Netflix' : (currentSession?.name || 'Utilisateur')), montant, motif });
+          await store.createMouvementCaisse({ type, beneficiaire, montant, motif });
           store.logAction(currentSession?.name, 'MOUVEMENT_CAISSE', `Nouveau ${type} de ${montant} FCFA`);
         }
       }
@@ -1469,324 +1527,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // -------------------------------------------------------------
-  // 9. RELANCES WHATSAPP & LIENS DE PAIEMENT (PERSONNALISABLES)
-  // -------------------------------------------------------------
-  function buildRelanceMessage({ clientNom = '', dateFin = '', tarif = 0, paymentLink = '', compteLibelle = '', profilNom = '' }) {
-    const cfg = store.getRelanceConfig();
-    let template = cfg.messageTemplate || '';
-    const lien = paymentLink || cfg.lienPaiementDefaut || '';
-
-    return template
-      .replace(/\{nom\}/g, clientNom || 'Client')
-      .replace(/\{dateFin\}/g, dateFin || '')
-      .replace(/\{tarif\}/g, formatFCFA(tarif || 1500))
-      .replace(/\{lienPaiement\}/g, lien)
-      .replace(/\{compte\}/g, compteLibelle || '')
-      .replace(/\{profil\}/g, profilNom || '');
-  }
-
-  function openRelanceModal({ clientNom, clientPhone, dateFin, tarif, compteLibelle = '', profilNom = '' }) {
-    const modal = document.getElementById('modal-relance');
-    const title = document.getElementById('modal-relance-title');
-    const inputNom = document.getElementById('relance-client-nom');
-    const inputDateFin = document.getElementById('relance-date-fin');
-    const inputTarif = document.getElementById('relance-tarif');
-    const inputCompte = document.getElementById('relance-compte');
-    const inputProfil = document.getElementById('relance-profil');
-    const inputPhone = document.getElementById('relance-phone');
-    const senderSelect = document.getElementById('relance-sender-select');
-    const inputPaymentLink = document.getElementById('relance-payment-link');
-    const textareaMsg = document.getElementById('relance-message-content');
-    const charCount = document.getElementById('relance-char-count');
-    const saveCheck = document.getElementById('relance-save-template-check');
-
-    if (!modal) return;
-
-    if (title) title.textContent = `Relance WhatsApp — ${clientNom}`;
-    inputNom.value = clientNom || '';
-    inputDateFin.value = dateFin || '';
-    inputTarif.value = tarif || '';
-    inputCompte.value = compteLibelle || '';
-    inputProfil.value = profilNom || '';
-
-    // Nettoyer et formater numéro
-    let cleanPhone = (clientPhone || '').replace(/\D/g, '');
-    if (cleanPhone && !cleanPhone.startsWith('225') && cleanPhone.length === 10) {
-      cleanPhone = '225' + cleanPhone;
-    }
-    inputPhone.value = cleanPhone;
-
-    const cfg = store.getRelanceConfig();
-
-    // Sélection automatique de l'associé connecté
-    let defaultSender = 'emmanuel';
-    if (currentSession && (currentSession.email?.toLowerCase().includes('malan') || currentSession.name?.toLowerCase().includes('malan'))) {
-      defaultSender = 'malan';
-    }
-    if (senderSelect) {
-      senderSelect.value = defaultSender;
-    }
-
-    function getLinkForSender(sender) {
-      // Priorité 1 : lien personnel chargé depuis la BDD via la session courante
-      if (currentSession && sender === defaultSender && currentSession.paymentLink) {
-        return currentSession.paymentLink;
-      }
-      // Priorité 2 : config de relance locale (modifiée via paramètres)
-      if (sender === 'malan') {
-        return cfg.lienPaiementMalan || 'https://pay.wave.com/m/horizon-service-malan';
-      }
-      return cfg.lienPaiementEmmanuel || 'https://pay.wave.com/m/horizon-service-emmanuel';
-    }
-
-    inputPaymentLink.value = getLinkForSender(senderSelect ? senderSelect.value : defaultSender);
-    if (saveCheck) saveCheck.checked = false;
-
-    function refreshMessage() {
-      textareaMsg.value = buildRelanceMessage({
-        clientNom: inputNom.value,
-        dateFin: inputDateFin.value,
-        tarif: inputTarif.value,
-        paymentLink: inputPaymentLink.value.trim(),
-        compteLibelle: inputCompte.value,
-        profilNom: inputProfil.value
-      });
-      if (charCount) charCount.textContent = `${textareaMsg.value.length} caractères`;
-    }
-
-    refreshMessage();
-
-    if (senderSelect) {
-      senderSelect.onchange = () => {
-        inputPaymentLink.value = getLinkForSender(senderSelect.value);
-        refreshMessage();
-      };
-    }
-
-    textareaMsg.oninput = () => {
-      if (charCount) charCount.textContent = `${textareaMsg.value.length} caractères`;
-    };
-
-    inputPaymentLink.oninput = () => {
-      refreshMessage();
-    };
-
-    modal.classList.add('active');
-  }
-
-  function initRelanceModalEvents() {
-    const modal = document.getElementById('modal-relance');
-    const form = document.getElementById('form-relance-send');
-    const senderSelect = document.getElementById('relance-sender-select');
-    const inputPaymentLink = document.getElementById('relance-payment-link');
-    const textareaMsg = document.getElementById('relance-message-content');
-    const btnEmmanuel = document.getElementById('btn-relance-insert-emmanuel');
-    const btnMalan = document.getElementById('btn-relance-insert-malan');
-    const btnNoLink = document.getElementById('btn-relance-remove-link');
-    const btnCopy = document.getElementById('btn-relance-copy-text');
-
-    btnEmmanuel?.addEventListener('click', () => {
-      const cfg = store.getRelanceConfig();
-      if (senderSelect) senderSelect.value = 'emmanuel';
-      inputPaymentLink.value = cfg.lienPaiementEmmanuel || 'https://pay.wave.com/m/horizon-service-emmanuel';
-      inputPaymentLink.dispatchEvent(new Event('input'));
-    });
-
-    btnMalan?.addEventListener('click', () => {
-      const cfg = store.getRelanceConfig();
-      if (senderSelect) senderSelect.value = 'malan';
-      inputPaymentLink.value = cfg.lienPaiementMalan || 'https://pay.wave.com/m/horizon-service-malan';
-      inputPaymentLink.dispatchEvent(new Event('input'));
-    });
-
-    btnNoLink?.addEventListener('click', () => {
-      inputPaymentLink.value = '';
-      inputPaymentLink.dispatchEvent(new Event('input'));
-    });
-
-    btnCopy?.addEventListener('click', () => {
-      if (textareaMsg && textareaMsg.value) {
-        navigator.clipboard.writeText(textareaMsg.value).then(() => {
-          showToast('Message copié dans le presse-papier !', 'info');
-        }).catch(() => {
-          textareaMsg.select();
-          document.execCommand('copy');
-          showToast('Message copié !', 'info');
-        });
-      }
-    });
-
-    form?.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const phone = document.getElementById('relance-phone').value.replace(/\D/g, '');
-      const msg = textareaMsg.value.trim();
-      const clientNom = document.getElementById('relance-client-nom').value;
-      const saveCheck = document.getElementById('relance-save-template-check');
-
-      if (!phone) {
-        showToast('Veuillez renseigner un numéro de téléphone valide.', 'warning');
-        return;
-      }
-
-      if (saveCheck && saveCheck.checked) {
-        store.updateRelanceConfig({ messageTemplate: msg });
-        showToast('Nouveau modèle de relance mémorisé !', 'info');
-      }
-
-      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
-      store.logAction(currentSession?.name, 'RELANCE_WHATSAPP', `Relance WhatsApp envoyée à ${clientNom || phone}`);
-      showToast(`Relance envoyée à ${clientNom || phone} !`, 'success');
-      modal?.classList.remove('active');
-    });
-  }
-
-  // -------------------------------------------------------------
-  // 9bis. Onglet 6 : Paramètres & Relances WhatsApp
+  // 9. Onglet Exports
   // -------------------------------------------------------------
   function renderSettingsTab() {
-    const cfg = store.getRelanceConfig();
-    const inputPaymentEmmanuel = document.getElementById('setting-payment-link-emmanuel');
-    const inputPaymentMalan = document.getElementById('setting-payment-link-malan');
-    const previewSenderSelect = document.getElementById('setting-preview-sender-select');
-    const textareaTemplate = document.getElementById('setting-message-template');
-    const previewBox = document.getElementById('preview-relance-box');
-    const formSettings = document.getElementById('form-relance-settings');
-
-    if (inputPaymentEmmanuel) {
-      // Priorité : lien depuis la BDD (store.data.users), puis config relance
-      const usersDb = store.data.users || [];
-      const emmDb = usersDb.find(u => u.email && u.email.toLowerCase().includes('emmanuelahossi'));
-      const malanDb = usersDb.find(u => u.email && u.email.toLowerCase().includes('malan'));
-      inputPaymentEmmanuel.value = (emmDb && emmDb.paymentLink) || cfg.lienPaiementEmmanuel || 'https://pay.wave.com/m/horizon-service-emmanuel';
-      if (inputPaymentMalan) {
-        inputPaymentMalan.value = (malanDb && malanDb.paymentLink) || cfg.lienPaiementMalan || 'https://pay.wave.com/m/horizon-service-malan';
-      }
-    }
-    if (textareaTemplate) {
-      textareaTemplate.value = cfg.messageTemplate || '';
-    }
-
-    function updatePreview() {
-      if (!previewBox) return;
-      const tpl = textareaTemplate ? textareaTemplate.value : '';
-      const selectedSender = previewSenderSelect ? previewSenderSelect.value : 'emmanuel';
-      const payment = selectedSender === 'malan' 
-        ? (inputPaymentMalan ? inputPaymentMalan.value.trim() : '')
-        : (inputPaymentEmmanuel ? inputPaymentEmmanuel.value.trim() : '');
-
-      const rendered = tpl
-        .replace(/\{nom\}/g, 'Kouassi Jean')
-        .replace(/\{dateFin\}/g, '25/10/2026')
-        .replace(/\{tarif\}/g, '1 500')
-        .replace(/\{lienPaiement\}/g, payment || 'https://pay.wave.com/m/horizon-service')
-        .replace(/\{compte\}/g, 'Compte 1')
-        .replace(/\{profil\}/g, 'Orion');
-
-      previewBox.textContent = rendered;
-    }
-
-    updatePreview();
-
-    if (textareaTemplate) textareaTemplate.oninput = updatePreview;
-    if (inputPaymentEmmanuel) inputPaymentEmmanuel.oninput = updatePreview;
-    if (inputPaymentMalan) inputPaymentMalan.oninput = updatePreview;
-    if (previewSenderSelect) previewSenderSelect.onchange = updatePreview;
-
-    // Insertion des tags à l'emplacement du curseur
-    document.querySelectorAll('.btn-tag').forEach(btn => {
-      btn.onclick = () => {
-        if (!textareaTemplate) return;
-        const tag = btn.dataset.tag;
-        const start = textareaTemplate.selectionStart || 0;
-        const end = textareaTemplate.selectionEnd || 0;
-        const text = textareaTemplate.value;
-        textareaTemplate.value = text.substring(0, start) + tag + text.substring(end);
-        textareaTemplate.selectionStart = textareaTemplate.selectionEnd = start + tag.length;
-        textareaTemplate.focus();
-        updatePreview();
-      };
-    });
-
-    // Rétablir le modèle par défaut avec modal de confirmation
-    const btnResetTpl = document.getElementById('btn-reset-relance-template');
-    if (btnResetTpl) {
-      btnResetTpl.onclick = async () => {
-        const ok = await showConfirmModal({
-          title: 'Rétablir le modèle par défaut',
-          message: 'Voulez-vous rétablir le modèle officiel de relance WhatsApp ?',
-          confirmText: 'Rétablir le texte',
-          cancelText: 'Annuler',
-          isDanger: false,
-          icon: '↩️'
-        });
-        if (!ok) return;
-
-        const defaultTemplate = "Bonjour {nom}, votre abonnement Netflix Horizon Service arrive à échéance le {dateFin}.\n\nPour continuer à profiter de vos programmes sans coupure, vous pouvez effectuer le règlement de {tarif} FCFA via ce lien de paiement sécurisé :\n{lienPaiement}\n\nMerci pour votre fidélité !";
-        if (textareaTemplate) textareaTemplate.value = defaultTemplate;
-        updatePreview();
-        showToast('Modèle de relance restauré par défaut.', 'info');
-      };
-    }
-
-    if (formSettings) {
-      formSettings.onsubmit = async (e) => {
-        e.preventDefault();
-        const linkEmmanuel = inputPaymentEmmanuel ? inputPaymentEmmanuel.value.trim() : '';
-        const linkMalan = inputPaymentMalan ? inputPaymentMalan.value.trim() : '';
-        const messageTemplate = textareaTemplate ? textareaTemplate.value.trim() : '';
-
-        const ok = await showConfirmModal({
-          title: 'Enregistrer les paramètres',
-          message: 'Voulez-vous appliquer ces nouveaux liens de paiement et ce modèle de relance ?',
-          confirmText: 'Enregistrer',
-          cancelText: 'Annuler',
-          isDanger: false,
-          icon: '💾'
-        });
-        if (!ok) return;
-
-        // 1. Sauvegarder le config local de relance
-        await store.updateRelanceConfig({
-          lienPaiementEmmanuel: linkEmmanuel,
-          lienPaiementMalan: linkMalan,
-          lienPaiementDefaut: linkEmmanuel,
-          messageTemplate: messageTemplate
-        });
-
-        // 2. Sauvegarder les liens de paiement en base de données pour chaque utilisateur
-        const users = store.data.users || [];
-        const userEmmanuel = users.find(u => u.email && u.email.toLowerCase().includes('emmanuelahossi'));
-        const userMalan = users.find(u => u.email && u.email.toLowerCase().includes('malan'));
-
-        const savePaymentLink = async (userId, link) => {
-          if (!userId || !link) return;
-          try {
-            const base = store.apiBase;
-            await fetch(`${base}/api/users/${userId}/payment-link`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ paymentLink: link })
-            });
-          } catch (err) {
-            console.warn('Erreur sauvegarde lien paiement en BDD :', err);
-          }
-        };
-
-        if (userEmmanuel) await savePaymentLink(userEmmanuel.id, linkEmmanuel);
-        if (userMalan) await savePaymentLink(userMalan.id, linkMalan);
-
-        // Si l'utilisateur connecté est Emmanuel ou Malan, mettre à jour aussi par session
-        if (currentSession) {
-          const myLink = currentSession.email && currentSession.email.toLowerCase().includes('malan')
-            ? linkMalan
-            : linkEmmanuel;
-          await savePaymentLink(currentSession.userId, myLink);
-        }
-
-        store.logAction(currentSession?.name, 'MODIFICATION_PARAMETRES', 'Liens de paiement (Wave/OM) et modèle de relance WhatsApp mis à jour en base de données');
-        showToast('Paramètres enregistrés et synchronisés avec la base de données !', 'success');
-      };
-    }
 
     // Bouton Export PDF
     const btnExportPdf = document.getElementById('btn-export-pdf');
@@ -1832,18 +1575,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const tbody = document.getElementById('table-audit-logs-body');
     if (!tbody) return;
 
-    tbody.innerHTML = store.data.auditLogs.map(l => {
+    tbody.innerHTML = (store.data.auditLogs || []).map(l => {
       const d = new Date(l.timestamp);
-      const dateStr = d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR');
+      const dateStr = Number.isNaN(d.getTime())
+        ? '—'
+        : d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR');
       return `
         <tr>
           <td class="font-mono text-xs text-muted">${dateStr}</td>
-          <td><strong>${escapeHtml(l.userName)}</strong></td>
-          <td><span class="badge badge-info">${escapeHtml(l.action)}</span></td>
-          <td class="text-sm">${escapeHtml(l.detail)}</td>
+          <td><strong>${escapeHtml(l.userName || 'Système')}</strong></td>
+          <td><span class="badge badge-info">${escapeHtml(l.action || '—')}</span></td>
+          <td class="text-sm">${escapeHtml(l.detail || '—')}</td>
         </tr>
       `;
     }).join('');
+    renderMobileAudit();
   }
 
   // -------------------------------------------------------------
@@ -1874,9 +1620,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Formulaire Caisse
     document.getElementById('btn-open-cash-modal')?.addEventListener('click', () => openCashModal());
     document.getElementById('form-cash-movement')?.addEventListener('submit', handleSaveCash);
-
-    // Modale Relance WhatsApp
-    initRelanceModalEvents();
 
     // Tiroir Client
     const drawerBackdrop = document.getElementById('drawer-client-backdrop');
@@ -1911,12 +1654,6 @@ document.addEventListener('DOMContentLoaded', () => {
           ${client.notes ? `<div class="text-xs text-secondary" style="margin-top: 4px;">Note : ${escapeHtml(client.notes)}</div>` : ''}
         </div>
 
-        <div style="display: flex; gap: 8px; margin-bottom: var(--space-6);">
-          <button class="btn btn-sm btn-whatsapp btn-drawer-wa" style="flex: 1;">
-            <span>Écrire sur WhatsApp</span>
-          </button>
-        </div>
-
         <div style="background-color: var(--bg-surface-elevated); padding: var(--space-4); border-radius: var(--radius-md); margin-bottom: var(--space-6);">
           <div style="display: flex; justify-content: space-between; font-size: var(--text-sm);">
             <span class="text-muted">Total versé :</span>
@@ -1947,19 +1684,6 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       `;
 
-      body.querySelector('.btn-drawer-wa')?.addEventListener('click', () => {
-        const lastSub = subs[0];
-        const lastProfil = lastSub ? store.data.profils.find(p => p.id === lastSub.profilId) : null;
-        const lastCompte = lastProfil ? store.data.comptes.find(c => c.id === lastProfil.compteId) : null;
-        openRelanceModal({
-          clientNom: client.nom,
-          clientPhone: client.telephone,
-          dateFin: lastSub ? formatDate(lastSub.dateFin) : '',
-          tarif: lastSub ? lastSub.tarif : 1500,
-          compteLibelle: lastCompte ? lastCompte.libelle : '',
-          profilNom: lastProfil ? lastProfil.nom : ''
-        });
-      });
     }
 
     if (drawer) drawer.classList.add('active');
@@ -2204,15 +1928,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 5. Mouvements de caisse récents
     const mouvementsRows = (data.mouvementsCaisse || []).slice(0, 10).map(m => {
-      const isRecharge = m.type === 'recharge';
-      const color = isRecharge ? '#b91c1c' : '#047857';
-      const prefix = isRecharge ? '-' : '+';
+      const color = '#b91c1c';
       return `<tr>
         <td>${escapeHtml(m.date || '-')}</td>
-        <td><span style="font-weight: bold; text-transform: uppercase; font-size: 9px; padding: 2px 5px; border-radius: 3px; background: ${isRecharge ? '#fee2e2' : '#d1fae5'}; color: ${color};">${escapeHtml(m.type)}</span></td>
+        <td><span style="font-weight: bold; text-transform: uppercase; font-size: 9px; padding: 2px 5px; border-radius: 3px; background: #fee2e2; color: ${color};">${escapeHtml(cashMovementTypeLabel(m.type))}</span></td>
         <td><strong>${escapeHtml(m.beneficiaire || 'Horizon')}</strong></td>
         <td>${escapeHtml(m.motif || '-')}</td>
-        <td style="text-align: right; font-weight: bold; color: ${color};">${prefix} ${formatFCFA(m.montant)}</td>
+        <td style="text-align: right; font-weight: bold; color: ${color};">- ${formatFCFA(m.montant)}</td>
       </tr>`;
     }).join('');
 
@@ -2522,7 +2244,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <th>Compte &amp; Profil Affecté</th>
               <th>Date d'Échéance</th>
               <th>Statut d'Alerte</th>
-              <th style="text-align: right;">Montant Relance</th>
+              <th style="text-align: right;">Montant abonnement</th>
             </tr>
           </thead>
           <tbody>
@@ -2664,7 +2386,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // MOBILE : Navigation en bas & Rendu de cartes tactiles
   // ==========================================================================
 
-  function switchTab(targetTab) {
+  async function switchTab(targetTab) {
     // Synchroniser desktop tabs
     const tabBtns = document.querySelectorAll('.admin-tabs-bar .tab-btn');
     tabBtns.forEach(b => b.classList.remove('active'));
@@ -2686,6 +2408,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (activePane) activePane.style.display = 'block';
 
     currentAdminTab = targetTab;
+    if (targetTab === 'tab-finances' || targetTab === 'tab-audit') {
+      try {
+        await store.syncFromBackend();
+        updateBadgesAndKPIs();
+      } catch (error) {
+        console.error(`Impossible d'actualiser l'onglet ${targetTab} :`, error);
+      }
+    }
     renderAdminTabContent(targetTab);
     window.scrollTo(0, 0);
   }
@@ -2693,10 +2423,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function initMobileNav() {
     const bnavBtns = document.querySelectorAll('.mobile-bottom-nav .bnav-btn');
     bnavBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const targetTab = btn.dataset.tab;
         if (!targetTab) return;
-        switchTab(targetTab);
+        await switchTab(targetTab);
       });
     });
   }
@@ -2730,24 +2460,10 @@ document.addEventListener('DOMContentLoaded', () => {
           <div><span class="m-card-label">Tarif</span> <span class="m-card-value">${formatFCFA(item.tarif)} F</span></div>
         </div>
         <div class="m-card-actions">
-          <button class="btn btn-whatsapp btn-relance-wa" data-client-phone="${item.client.telephone}" data-client-nom="${escapeHtml(item.client.nom)}" data-date-fin="${formatDate(item.dateFin)}" data-tarif="${item.tarif}" data-compte="${escapeHtml(item.compte.libelle)}" data-profil="${escapeHtml(item.profil.nom)}">Relancer</button>
           <button class="btn btn-secondary btn-renew-quick" data-sub-id="${item.id}">Renouveler</button>
         </div>
       </div>
     `).join('');
-
-    container.querySelectorAll('.btn-relance-wa').forEach(btn => {
-      btn.addEventListener('click', () => {
-        openRelanceModal({
-          clientNom: btn.dataset.clientNom,
-          clientPhone: btn.dataset.clientPhone,
-          dateFin: btn.dataset.dateFin,
-          tarif: Number(btn.dataset.tarif) || 1500,
-          compteLibelle: btn.dataset.compte,
-          profilNom: btn.dataset.profil
-        });
-      });
-    });
 
     container.querySelectorAll('.btn-renew-quick').forEach(btn => {
       btn.addEventListener('click', () => renewSubscription(btn.dataset.subId));
@@ -2759,7 +2475,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const container = document.getElementById('mobile-historique-list');
     if (!container) return;
 
-    container.innerHTML = store.data.historiqueMensuel.map(m => `
+    container.innerHTML = store.getHistoriqueMensuel().map(m => `
       <div class="m-card">
         <div class="m-card-row">
           <div class="m-card-title">${escapeHtml(m.label)}</div>
@@ -2917,17 +2633,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     container.innerHTML = mvts.map(m => `
-      <div class="m-card ${m.type === 'prelevement' ? 'm-card-danger' : ''}">
+      <div class="m-card m-card-danger">
         <div class="m-card-row">
-          <div class="m-card-title">${escapeHtml(m.beneficiaire)}</div>
-          <span class="badge ${m.type === 'prelevement' ? 'badge-danger' : 'badge-success'}">${m.type === 'prelevement' ? '↑ Prélèvement' : '↓ Recharge'}</span>
+          <div class="m-card-title">${escapeHtml(m.beneficiaire || '—')}</div>
+          <span class="badge ${m.type === 'recharge' ? 'badge-danger' : 'badge-warning'}">${escapeHtml(cashMovementTypeLabel(m.type))}</span>
         </div>
         <hr class="m-card-divider">
         <div class="m-card-row">
           <div><div class="m-card-label">Date</div><div class="m-card-value">${formatDate(m.date)}</div></div>
-          <div><div class="m-card-label">Montant</div><div class="m-card-value ${m.type === 'prelevement' ? 'text-danger' : 'text-success'}">${m.type === 'prelevement' ? '-' : '+'}${formatFCFA(m.montant)} F</div></div>
+          <div><div class="m-card-label">Montant</div><div class="m-card-value text-danger">-${formatFCFA(m.montant)} F</div></div>
         </div>
-        <div class="m-card-subtitle">${escapeHtml(m.motif || '')}</div>
+        <div class="m-card-subtitle">${escapeHtml(m.motif || 'Aucun motif indiqué')}</div>
         <div class="m-card-actions">
           <button class="btn btn-outline btn-edit-mvt" data-mvt-id="${m.id}">Éditer</button>
           <button class="btn btn-danger btn-delete-mvt" data-mvt-id="${m.id}">✕</button>
@@ -2954,6 +2670,10 @@ document.addEventListener('DOMContentLoaded', () => {
         renderAdmin();
         showToast('Mouvement supprimé', 'success');
       });
+    });
+
+    container.querySelectorAll('.btn-edit-mvt').forEach(btn => {
+      btn.addEventListener('click', () => openCashModal(btn.dataset.mvtId));
     });
   }
 

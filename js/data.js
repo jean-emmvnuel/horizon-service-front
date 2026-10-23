@@ -1,7 +1,7 @@
 /**
- * HORIZON SERVICE — STORE ET MODÈLE DE DONNÉES DYNAMIQUE (RÉSEAU PUR / ZÉRO CACHE LOCAL)
+ * HORIZON SERVICE — STORE ET MODÈLE DE DONNÉES DYNAMIQUE (SESSION LOCALE, DONNÉES VIA API)
  * Connecté directement au Backend SQLite via NestJS API
- * - ZÉRO cache local : aucune donnée persistée dans localStorage ou CacheStorage
+ * - Seule la session de connexion est persistée dans localStorage
  * - Notification automatique à chaque requête : SUCCÈS ou "LA REQUÊTE N'EST PAS PASSÉE"
  * - 2 Utilisateurs réels authentifiés par JWT : Emmanuel & Malan Abdias
  */
@@ -12,17 +12,22 @@ const API_BASE = (typeof window !== 'undefined' && window.HORIZON_CONFIG && wind
 
 const SESSION_KEY = 'horizon_service_session_v2';
 
-// Aucune persistance locale autorisée pour l'état de session ou les données applicatives.
+// Les données métier restent en mémoire ; localStorage ne conserve que la session de connexion.
 try {
   if (typeof localStorage !== 'undefined') {
-    localStorage.removeItem('horizon_service_sqlite_cache_v2');
-    localStorage.removeItem('horizon_service_db');
-    localStorage.removeItem(SESSION_KEY);
+    const localKeys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index));
+    localKeys.forEach((key) => {
+      if (key !== SESSION_KEY) localStorage.removeItem(key);
+    });
   }
-  if (typeof sessionStorage !== 'undefined') {
-    sessionStorage.removeItem(SESSION_KEY);
-  }
-} catch (e) {}
+} catch (error) {
+  console.error('Impossible de nettoyer les anciens caches locaux :', error);
+}
+try {
+  if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(SESSION_KEY);
+} catch (error) {
+  console.error('Impossible de nettoyer l’ancienne session temporaire :', error);
+}
 
 const EMPTY_DATA = {
   version: '2.1',
@@ -38,22 +43,18 @@ const EMPTY_DATA = {
   },
   mouvementsCaisse: [],
   auditLogs: [],
-  historiqueMensuel: [],
-  relanceConfig: {
-    messageTemplate: "Bonjour {nom}, votre abonnement Netflix Horizon Service arrive à échéance le {dateFin}.\n\nPour continuer à profiter de vos programmes sans coupure, vous pouvez effectuer le règlement de {tarif} FCFA via ce lien de paiement sécurisé :\n{lienPaiement}\n\nMerci pour votre fidélité !",
-    lienPaiementDefaut: "https://pay.wave.com/m/horizon-service",
-    lienPaiementEmmanuel: "https://pay.wave.com/m/M_ci_udY9cJUTQBDe/c/ci/",
-    lienPaiementMalan: "https://pay.wave.com/m/horizon-service-malan",
-    numeroWhatsAppRelance: ""
-  }
+  historiqueMensuel: []
 };
 
 class DataStore {
   constructor() {
     this.apiBase = API_BASE;
-    // Données en mémoire vive pure, aucune lecture dans le cache local
+    // Les données métier ne sont jamais persistées localement.
     this.data = JSON.parse(JSON.stringify(EMPTY_DATA));
-    this.syncFromBackend(true).catch(() => {});
+    this.initialSync = this.syncFromBackend(true).catch((error) => {
+      console.warn('Synchronisation initiale impossible :', error.message);
+      return null;
+    });
   }
 
   /**
@@ -261,31 +262,26 @@ class DataStore {
     return this.data;
   }
 
-  // --- GESTION RELANCES & PAIEMENTS ---
-  getRelanceConfig() {
-    if (!this.data.relanceConfig) {
-      this.data.relanceConfig = { ...EMPTY_DATA.relanceConfig };
-    }
-    return this.data.relanceConfig;
-  }
-
-  async updateRelanceConfig(cfg) {
-    const updated = {
-      ...this.getRelanceConfig(),
-      ...cfg
-    };
-
-    await this.apiRequest('/api/settings/relance', {
-      method: 'POST',
-      body: updated
-    }, 'Sauvegarde configuration relance');
-
-    this.data.relanceConfig = updated;
-    return this.data.relanceConfig;
-  }
-
   // --- Authentification & Session (Connecté à l'API) ---
   getCurrentSession() {
+    try {
+      const serialized = localStorage.getItem(SESSION_KEY);
+      if (!serialized) return null;
+
+      const session = JSON.parse(serialized);
+      if (session && session.userId && session.email && session.token) {
+        return session;
+      }
+
+      localStorage.removeItem(SESSION_KEY);
+    } catch (error) {
+      console.error('Impossible de lire la session de connexion :', error);
+      try {
+        localStorage.removeItem(SESSION_KEY);
+      } catch (cleanupError) {
+        console.error('Impossible de supprimer la session invalide :', cleanupError);
+      }
+    }
     return null;
   }
 
@@ -305,11 +301,10 @@ class DataStore {
           name: u.name || u.username,
           role: u.role,
           roleLabel: u.roleLabel,
-          paymentLink: u.paymentLink || u.payment_link || '',
           token: result.data.token,
           loginTime: new Date().toISOString()
         };
-        await this.syncFromBackend(true).catch(() => {});
+        localStorage.setItem(SESSION_KEY, JSON.stringify(session));
         return session;
       } else {
         const msg = (result && (result.message || result.error)) || 'Identifiants incorrects.';
@@ -323,7 +318,7 @@ class DataStore {
   }
 
   clearSession() {
-    return;
+    localStorage.removeItem(SESSION_KEY);
   }
 
   // =============================================================
@@ -702,11 +697,11 @@ class DataStore {
     const rechargesTotal = (this.data.mouvementsCaisse || [])
       .filter(m => m.type === 'recharge')
       .reduce((sum, m) => sum + (Number(m.montant) || 0), 0);
-    const prelevementsTotal = (this.data.mouvementsCaisse || [])
-      .filter(m => m.type === 'prelevement')
+    const depensesTotal = (this.data.mouvementsCaisse || [])
+      .filter(m => ['prelevement', 'depense_associe', 'depense_justifiee', 'autre'].includes(m.type))
       .reduce((sum, m) => sum + (Number(m.montant) || 0), 0);
 
-    const caisseTheorique = caTotal - rechargesTotal - prelevementsTotal;
+    const caisseTheorique = caTotal - rechargesTotal - depensesTotal;
     const caisseReelle = (this.data.caisse && this.data.caisse.dernierPointageReel) || 0;
     const ecartCaisse = caisseReelle - caisseTheorique;
     const beneficeMois = Math.max(0, caTotal - rechargesTotal);
@@ -727,7 +722,7 @@ class DataStore {
       tauxRemplissage,
       caTotal,
       rechargesTotal,
-      prelevementsTotal,
+      depensesTotal,
       caisseTheorique,
       caisseReelle,
       ecartCaisse,
@@ -755,17 +750,18 @@ class DataStore {
       action,
       detail
     };
-    this.data.auditLogs.unshift(newLog);
-
     try {
-      await this.apiRequest('/api/audit', {
+      const result = await this.apiRequest('/api/audit', {
         method: 'POST',
         body: newLog
       }, 'Journalisation audit');
-    } catch (e) {
-      // Échec silencieux pour l'audit pour ne pas bloquer l'utilisateur
+      if (result && result.id) newLog.id = result.id;
+      this.data.auditLogs.unshift(newLog);
+      return newLog;
+    } catch (error) {
+      console.error('Échec de journalisation de l’action :', error);
+      return null;
     }
-    return newLog;
   }
 }
 
