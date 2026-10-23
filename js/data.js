@@ -697,16 +697,9 @@ class DataStore {
         if (monthMap.has(monthKey)) {
           const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
           const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 23, 59, 59, 999);
-          const overlapStart = start > monthStart ? start : monthStart;
-          const overlapEnd = end < monthEnd ? end : monthEnd;
-          const overlapDays = Math.max(1, Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-          const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-          const share = totalDays > 0 ? overlapDays / totalDays : 1;
-          const monthlyCa = tarif * share;
-          addValueToMonth(monthKey, 'ca', monthlyCa);
-
           const isActiveInMonth = start <= monthEnd && end >= monthStart;
           if (isActiveInMonth) {
+            addValueToMonth(monthKey, 'ca', tarif);
             addValueToMonth(monthKey, 'recharge', FIXED_RECHARGE_MENSUEL);
           }
         }
