@@ -12,11 +12,15 @@ const API_BASE = (typeof window !== 'undefined' && window.HORIZON_CONFIG && wind
 
 const SESSION_KEY = 'horizon_service_session_v2';
 
-// Purge immédiate de toute ancienne BDD mise en cache
+// Aucune persistance locale autorisée pour l'état de session ou les données applicatives.
 try {
   if (typeof localStorage !== 'undefined') {
     localStorage.removeItem('horizon_service_sqlite_cache_v2');
     localStorage.removeItem('horizon_service_db');
+    localStorage.removeItem(SESSION_KEY);
+  }
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.removeItem(SESSION_KEY);
   }
 } catch (e) {}
 
@@ -282,10 +286,6 @@ class DataStore {
 
   // --- Authentification & Session (Connecté à l'API) ---
   getCurrentSession() {
-    try {
-      const raw = localStorage.getItem(SESSION_KEY);
-      if (raw) return JSON.parse(raw);
-    } catch (e) {}
     return null;
   }
 
@@ -309,7 +309,6 @@ class DataStore {
           token: result.data.token,
           loginTime: new Date().toISOString()
         };
-        localStorage.setItem(SESSION_KEY, JSON.stringify(session));
         await this.syncFromBackend(true).catch(() => {});
         return session;
       } else {
@@ -324,11 +323,7 @@ class DataStore {
   }
 
   clearSession() {
-    const current = this.getCurrentSession();
-    if (current) {
-      this.logAction(current.name, 'DÉCONNEXION', `Déconnexion de ${current.name}`).catch(() => {});
-    }
-    localStorage.removeItem(SESSION_KEY);
+    return;
   }
 
   // =============================================================

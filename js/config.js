@@ -24,13 +24,7 @@ if (typeof self !== 'undefined') {
 // 1. PURGE COMPLÈTE DU CACHE LOCAL (ZÉRO CACHE LOCAL)
 // ==========================================================================
 try {
-  // Suppression de la BDD locale stockée en cache
-  if (typeof localStorage !== 'undefined') {
-    localStorage.removeItem('horizon_service_db');
-    sessionStorage.removeItem('horizon_service_db');
-  }
-
-  // Suppression de tous les caches Service Worker / CacheStorage
+  // Aucune persistance locale autorisée pour les données de session ou les caches applicatifs.
   if (typeof window !== 'undefined' && 'caches' in window) {
     caches.keys().then((names) => {
       for (const name of names) {
@@ -39,7 +33,6 @@ try {
     }).catch(() => {});
   }
 
-  // Désinscription de tout Service Worker pour garantir du réseau direct pur
   if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then((registrations) => {
       for (const registration of registrations) {
@@ -48,7 +41,7 @@ try {
     }).catch(() => {});
   }
 } catch (e) {
-  console.warn('Nettoyage cache local :', e);
+  console.warn('Nettoyage runtime :', e);
 }
 
 // ==========================================================================
