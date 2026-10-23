@@ -655,6 +655,7 @@ class DataStore {
   }
 
   getHistoriqueMensuel() {
+    const FIXED_RECHARGE_MENSUEL = 1500;
     const months = [];
     const now = new Date();
     const monthCount = 6;
@@ -675,13 +676,6 @@ class DataStore {
 
     const monthMap = new Map(months.map(m => [m.id, m]));
 
-    const toMonthKey = (dateStr) => {
-      if (!dateStr) return null;
-      const d = new Date(dateStr);
-      if (Number.isNaN(d.getTime())) return null;
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    };
-
     const addValueToMonth = (monthKey, key, value) => {
       if (!monthKey || !monthMap.has(monthKey)) return;
       const item = monthMap.get(monthKey);
@@ -694,11 +688,11 @@ class DataStore {
       if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
 
       const tarif = Number(ab.tarif) || 0;
-      const effectiveStart = new Date(start.getFullYear(), start.getMonth(), 1);
-      const effectiveEnd = new Date(end.getFullYear(), end.getMonth() + 1, 0, 23, 59, 59, 999);
+      const monthStartLimit = new Date(start.getFullYear(), start.getMonth(), 1);
+      const monthEndLimit = new Date(end.getFullYear(), end.getMonth() + 1, 0, 23, 59, 59, 999);
 
-      let cursor = new Date(effectiveStart);
-      while (cursor <= effectiveEnd) {
+      let cursor = new Date(monthStartLimit);
+      while (cursor <= monthEndLimit) {
         const monthKey = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`;
         if (monthMap.has(monthKey)) {
           const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
@@ -710,18 +704,13 @@ class DataStore {
           const share = totalDays > 0 ? overlapDays / totalDays : 1;
           const monthlyCa = tarif * share;
           addValueToMonth(monthKey, 'ca', monthlyCa);
+
+          const isActiveInMonth = start <= monthEnd && end >= monthStart;
+          if (isActiveInMonth) {
+            addValueToMonth(monthKey, 'recharge', FIXED_RECHARGE_MENSUEL);
+          }
         }
         cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
-      }
-    });
-
-    (this.data.mouvementsCaisse || []).forEach(m => {
-      if (!m || !m.date) return;
-      const monthKey = toMonthKey(m.date);
-      if (!monthKey || !monthMap.has(monthKey)) return;
-      const montant = Number(m.montant) || 0;
-      if (m.type === 'recharge') {
-        addValueToMonth(monthKey, 'recharge', montant);
       }
     });
 
