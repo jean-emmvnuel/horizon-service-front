@@ -682,10 +682,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!modal) return;
 
-    // Remplissage des sélecteurs
-    selClient.innerHTML = store.data.clients.map(c => `
-      <option value="${c.id}">${escapeHtml(c.nom || 'Sans nom')} (${escapeHtml(c.telephone || 'sans numéro')})</option>
-    `).join('');
+    // Remplissage des sélecteurs : afficher l'identifiant client (ex. cl 100), pas le nom
+    const orderedClients = [...store.data.clients].sort(compareClientReferences);
+    selClient.innerHTML = orderedClients.map(c => {
+      const clientRef = getClientReference(c);
+      return `<option value="${c.id}">${escapeHtml(clientRef)}</option>`;
+    }).join('');
 
     selCompte.innerHTML = store.data.comptes.map(c => `
       <option value="${c.id}">${escapeHtml(c.libelle)} (${c.capacitePlaces} places)</option>
@@ -815,29 +817,60 @@ document.addEventListener('DOMContentLoaded', () => {
   // -------------------------------------------------------------
   // 6. CRUD : Clients
   // -------------------------------------------------------------
+  function getClientReference(client) {
+    const raw = (client?.ancienId || '').trim();
+    if (raw) return raw;
+    const fallback = (client?.nom || '').trim();
+    return fallback || 'Sans identifiant';
+  }
+
+  function compareClientReferences(a, b) {
+    const refA = getClientReference(a).toLowerCase();
+    const refB = getClientReference(b).toLowerCase();
+
+    const extractNumber = (value) => {
+      const match = value.match(/cl\s*(\d+)/i);
+      return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
+    };
+
+    const numA = extractNumber(refA);
+    const numB = extractNumber(refB);
+
+    if (numA !== Number.MAX_SAFE_INTEGER || numB !== Number.MAX_SAFE_INTEGER) {
+      if (numA !== numB) return numA - numB;
+    }
+
+    return refA.localeCompare(refB, 'fr', { numeric: true, sensitivity: 'base' });
+  }
+
   function renderClientsTab() {
     const listContainer = document.getElementById('clients-table-body');
     if (!listContainer) return;
 
     const searchTerm = (document.getElementById('input-search-clients')?.value || '').toLowerCase().trim();
 
-    let clients = store.data.clients;
+    let clients = [...store.data.clients].sort(compareClientReferences);
     if (searchTerm) {
-      clients = clients.filter(c => 
-        (c.nom || '').toLowerCase().includes(searchTerm) ||
-        (c.telephone && c.telephone.toLowerCase().includes(searchTerm)) ||
-        (c.ancienId && c.ancienId.toLowerCase().includes(searchTerm))
-      );
+      clients = clients.filter(c => {
+        const ref = getClientReference(c).toLowerCase();
+        return (
+          ref.includes(searchTerm) ||
+          (c.nom || '').toLowerCase().includes(searchTerm) ||
+          (c.telephone && c.telephone.toLowerCase().includes(searchTerm)) ||
+          (c.ancienId && c.ancienId.toLowerCase().includes(searchTerm))
+        );
+      });
     }
 
     listContainer.innerHTML = clients.map(c => {
       const clientSubs = store.data.abonnements.filter(ab => ab.clientId === c.id);
       const totalDepense = clientSubs.reduce((sum, ab) => sum + ab.tarif, 0);
+      const clientRef = getClientReference(c);
 
       return `
         <tr>
           <td>
-            <strong>${escapeHtml(c.nom || 'Sans nom')}</strong>
+            <strong>${escapeHtml(clientRef)}</strong>
             ${c.ancienId ? `<span class="badge badge-neutral" style="margin-left: 4px;">${escapeHtml(c.ancienId)}</span>` : ''}
           </td>
           <td>${formatPhone(c.telephone)}</td>
