@@ -217,9 +217,8 @@ document.addEventListener('DOMContentLoaded', () => {
       await store.syncFromBackend();
       renderAdmin();
       updateLastSyncLabel();
-      showToast('Données rafraîchies depuis la base de données.', 'success');
     } catch (e) {
-      showToast('Impossible de contacter le serveur. Les données locales sont affichées.', 'warning');
+      console.warn('Erreur rafraîchissement direct :', e);
     }
     if (btnEl) btnEl.disabled = false;
   }
@@ -706,7 +705,7 @@ document.addEventListener('DOMContentLoaded', () => {
     modal.classList.add('active');
   }
 
-  function handleSaveAbonnement(e) {
+  async function handleSaveAbonnement(e) {
     e.preventDefault();
     const editId = document.getElementById('sub-edit-id').value;
     const clientId = document.getElementById('sub-client-select').value;
@@ -716,22 +715,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const dateFin = document.getElementById('sub-date-fin').value;
 
     if (new Date(dateFin) <= new Date(dateDebut)) {
-      alert('La date de fin doit être postérieure à la date de début.');
+      showToast('La date de fin doit être postérieure à la date de début.', 'warning');
       return;
     }
 
-    if (editId) {
-      store.updateAbonnement(editId, { clientId, profilId, tarif, dateDebut, dateFin });
-      store.logAction(currentSession?.name, 'MODIFICATION_ABONNEMENT', `Abonnement ${editId} mis à jour`);
-      showToast('Abonnement modifié avec succès !', 'success');
-    } else {
-      store.createAbonnement({ clientId, profilId, tarif, dateDebut, dateFin });
-      store.logAction(currentSession?.name, 'CREATION_ABONNEMENT', `Nouvel abonnement pour ${clientId}`);
-      showToast('Abonnement créé avec succès !', 'success');
-    }
+    try {
+      if (editId) {
+        await store.updateAbonnement(editId, { clientId, profilId, tarif, dateDebut, dateFin });
+        store.logAction(currentSession?.name, 'MODIFICATION_ABONNEMENT', `Abonnement ${editId} mis à jour`);
+      } else {
+        await store.createAbonnement({ clientId, profilId, tarif, dateDebut, dateFin });
+        store.logAction(currentSession?.name, 'CREATION_ABONNEMENT', `Nouvel abonnement pour ${clientId}`);
+      }
 
-    document.getElementById('modal-sub').classList.remove('active');
-    renderAdmin();
+      document.getElementById('modal-sub').classList.remove('active');
+      renderAdmin();
+    } catch (err) {
+      console.warn('Erreur sauvegarde abonnement :', err);
+    }
   }
 
   async function renewSubscription(subId) {
@@ -748,10 +749,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     if (!ok) return;
 
-    await store.renewSubscription(subId);
-    store.logAction(currentSession?.name, 'RENOUVELLEMENT_ABONNEMENT', `Abonnement de ${clientName} renouvelé +1 mois`);
-    showToast(`Abonnement de ${clientName} prolongé avec succès !`, 'success');
-    renderAdmin();
+    try {
+      await store.renewSubscription(subId);
+      store.logAction(currentSession?.name, 'RENOUVELLEMENT_ABONNEMENT', `Abonnement de ${clientName} renouvelé +1 mois`);
+      renderAdmin();
+    } catch (err) {
+      console.warn('Erreur renouvellement abonnement :', err);
+    }
   }
 
   // -------------------------------------------------------------
@@ -826,10 +830,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         if (!ok) return;
 
-        await store.deleteClient(id);
-        store.logAction(currentSession?.name, 'SUPPRESSION_CLIENT', `Client ${id} (${name}) supprimé`);
-        showToast('Client supprimé avec succès.', 'info');
-        renderAdmin();
+        try {
+          await store.deleteClient(id);
+          store.logAction(currentSession?.name, 'SUPPRESSION_CLIENT', `Client ${id} (${name}) supprimé`);
+          renderAdmin();
+        } catch (err) {
+          console.warn('Erreur suppression client :', err);
+        }
       });
     });
 
@@ -869,7 +876,7 @@ document.addEventListener('DOMContentLoaded', () => {
     modal.classList.add('active');
   }
 
-  function handleSaveClient(e) {
+  async function handleSaveClient(e) {
     e.preventDefault();
     const editId = document.getElementById('cli-edit-id').value;
     const nom = document.getElementById('cli-nom').value.trim();
@@ -878,18 +885,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const origine = document.getElementById('cli-origine').value;
     const notes = document.getElementById('cli-notes').value.trim();
 
-    if (editId) {
-      store.updateClient(editId, { nom, telephone, ancienId, origine, notes });
-      store.logAction(currentSession?.name, 'MODIFICATION_CLIENT', `Fiche client ${nom} mise à jour`);
-      showToast(`Client ${nom} mis à jour avec succès !`, 'success');
-    } else {
-      store.createClient({ nom, telephone, ancienId, origine, notes });
-      store.logAction(currentSession?.name, 'CREATION_CLIENT', `Client ${nom} créé`);
-      showToast(`Client ${nom} ajouté avec succès !`, 'success');
-    }
+    try {
+      if (editId) {
+        await store.updateClient(editId, { nom, telephone, ancienId, origine, notes });
+        store.logAction(currentSession?.name, 'MODIFICATION_CLIENT', `Fiche client ${nom} mise à jour`);
+      } else {
+        await store.createClient({ nom, telephone, ancienId, origine, notes });
+        store.logAction(currentSession?.name, 'CREATION_CLIENT', `Client ${nom} créé`);
+      }
 
-    document.getElementById('modal-client').classList.remove('active');
-    renderAdmin();
+      document.getElementById('modal-client').classList.remove('active');
+      renderAdmin();
+    } catch (err) {
+      console.warn('Erreur sauvegarde client :', err);
+    }
   }
 
   // -------------------------------------------------------------
@@ -1042,10 +1051,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         if (!ok) return;
 
-        await store.deleteCompte(id);
-        store.logAction(currentSession?.name, 'SUPPRESSION_COMPTE', `Compte ${id} (${name}) supprimé`);
-        showToast('Compte supprimé avec succès.', 'info');
-        renderAdmin();
+        try {
+          await store.deleteCompte(id);
+          store.logAction(currentSession?.name, 'SUPPRESSION_COMPTE', `Compte ${id} (${name}) supprimé`);
+          renderAdmin();
+        } catch (err) {
+          console.warn('Erreur suppression compte :', err);
+        }
       });
     });
 
@@ -1073,10 +1085,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         if (!ok) return;
 
-        await store.deleteProfil(id);
-        store.logAction(currentSession?.name, 'SUPPRESSION_PROFIL', `Profil ${id} (${name}) supprimé`);
-        showToast('Profil supprimé.', 'info');
-        renderAdmin();
+        try {
+          await store.deleteProfil(id);
+          store.logAction(currentSession?.name, 'SUPPRESSION_PROFIL', `Profil ${id} (${name}) supprimé`);
+          renderAdmin();
+        } catch (err) {
+          console.warn('Erreur suppression profil :', err);
+        }
       });
     });
   }
@@ -1124,7 +1139,7 @@ document.addEventListener('DOMContentLoaded', () => {
     modal.classList.add('active');
   }
 
-  function handleSaveCompte(e) {
+  async function handleSaveCompte(e) {
     e.preventDefault();
     const editId = document.getElementById('cpt-edit-id').value;
     const libelle = document.getElementById('cpt-libelle').value.trim();
@@ -1135,19 +1150,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const capacitePlaces = document.getElementById('cpt-capacite').value;
     const maxProfils = document.getElementById('cpt-max-profils').value;
 
-    if (editId) {
-      store.updateCompte(editId, { libelle, email, motDePasse, dateReabonnement, coutRechargeMensuel, capacitePlaces, maxProfils });
-      store.logAction(currentSession?.name, 'MODIFICATION_COMPTE', `Compte ${libelle} mis à jour`);
-      showToast(`Compte ${libelle} modifié !`, 'success');
-    } else {
-      const today = new Date().toISOString().slice(0, 10);
-      store.createCompte({ libelle, email, motDePasse, dateOuverture: today, dateReabonnement, coutRechargeMensuel, capacitePlaces, maxProfils });
-      store.logAction(currentSession?.name, 'CREATION_COMPTE', `Compte ${libelle} créé`);
-      showToast(`Compte ${libelle} créé !`, 'success');
-    }
+    try {
+      if (editId) {
+        await store.updateCompte(editId, { libelle, email, motDePasse, dateReabonnement, coutRechargeMensuel, capacitePlaces, maxProfils });
+        store.logAction(currentSession?.name, 'MODIFICATION_COMPTE', `Compte ${libelle} mis à jour`);
+      } else {
+        const today = new Date().toISOString().slice(0, 10);
+        await store.createCompte({ libelle, email, motDePasse, dateOuverture: today, dateReabonnement, coutRechargeMensuel, capacitePlaces, maxProfils });
+        store.logAction(currentSession?.name, 'CREATION_COMPTE', `Compte ${libelle} créé`);
+      }
 
-    document.getElementById('modal-compte').classList.remove('active');
-    renderAdmin();
+      document.getElementById('modal-compte').classList.remove('active');
+      renderAdmin();
+    } catch (err) {
+      console.warn('Erreur sauvegarde compte :', err);
+    }
   }
 
   function openProfilModal(profilId = null, compteId = null) {
@@ -1190,7 +1207,7 @@ document.addEventListener('DOMContentLoaded', () => {
     modal.classList.add('active');
   }
 
-  function handleSaveProfil(e) {
+  async function handleSaveProfil(e) {
     e.preventDefault();
     const editId = document.getElementById('prf-edit-id').value;
     const compteId = document.getElementById('prf-compte-id').value;
@@ -1198,23 +1215,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const codePin = document.getElementById('prf-pin').value.trim();
     const codeRenewNeeded = document.getElementById('prf-renew-needed').checked;
 
-    if (editId) {
-      store.updateProfil(editId, { nom, codePin, codeRenewNeeded });
-      store.logAction(currentSession?.name, 'MODIFICATION_PROFIL', `Profil ${nom} mis à jour`);
-      showToast(`Profil ${nom} modifié !`, 'success');
-    } else {
-      try {
-        store.createProfil({ compteId, nom, codePin, codeRenewNeeded });
+    try {
+      if (editId) {
+        await store.updateProfil(editId, { nom, codePin, codeRenewNeeded });
+        store.logAction(currentSession?.name, 'MODIFICATION_PROFIL', `Profil ${nom} mis à jour`);
+      } else {
+        await store.createProfil({ compteId, nom, codePin, codeRenewNeeded });
         store.logAction(currentSession?.name, 'CREATION_PROFIL', `Profil ${nom} ajouté`);
-        showToast(`Profil ${nom} créé avec succès !`, 'success');
-      } catch (err) {
-        alert(err.message);
-        return;
       }
-    }
 
-    document.getElementById('modal-profil').classList.remove('active');
-    renderAdmin();
+      document.getElementById('modal-profil').classList.remove('active');
+      renderAdmin();
+    } catch (err) {
+      console.warn('Erreur sauvegarde profil :', err);
+    }
   }
 
   // -------------------------------------------------------------
@@ -2189,21 +2203,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function showToast(message, type = 'info') {
-    const container = document.getElementById('toast-container');
-    if (!container) return;
-
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.innerHTML = `<div style="flex-grow: 1;">${escapeHtml(message)}</div>`;
-
-    container.appendChild(toast);
-
-    setTimeout(() => {
-      toast.style.opacity = '0';
-      toast.style.transform = 'translateY(10px)';
-      toast.style.transition = 'all 200ms ease';
-      setTimeout(() => toast.remove(), 200);
-    }, 3500);
+    if (typeof window.showToast === 'function') {
+      window.showToast(message, type);
+    }
   }
   // ==========================================================================
   // MOBILE : Navigation en bas & Rendu de cartes tactiles

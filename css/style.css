@@ -620,10 +620,30 @@ p {
   animation: slideInUp 250ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.toast-success { border-left: 4px solid var(--status-success); }
-.toast-error { border-left: 4px solid var(--status-danger); }
-.toast-warning { border-left: 4px solid var(--status-warning); }
-.toast-info { border-left: 4px solid var(--status-info); }
+.toast-success {
+  border-left: 4px solid var(--status-success);
+  background: #111e18;
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #ecfdf5;
+}
+.toast-error, .toast-danger {
+  border-left: 4px solid var(--status-danger);
+  background: #231215;
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #fff1f2;
+}
+.toast-warning {
+  border-left: 4px solid var(--status-warning);
+  background: #231d10;
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #fffbeb;
+}
+.toast-info {
+  border-left: 4px solid var(--status-info);
+  background: #111a2a;
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #eff6ff;
+}
 
 @keyframes slideInUp {
   from {

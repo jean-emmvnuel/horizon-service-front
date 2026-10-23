@@ -1,19 +1,27 @@
 /**
- * HORIZON SERVICE — STORE ET MODÈLE DE DONNÉES DYNAMIQUE
- * Connecté directement au Backend SQLite (horizon.db) via NestJS API
- * - 2 Utilisateurs réels authentifiés par JWT : Emmanuel (Fondateur) & Malan Abdias (Associé)
- * - Base SQLite dynamique sans données fictives en dur
- * - Synchronisation en temps réel avec l'API
+ * HORIZON SERVICE — STORE ET MODÈLE DE DONNÉES DYNAMIQUE (RÉSEAU PUR / ZÉRO CACHE LOCAL)
+ * Connecté directement au Backend SQLite via NestJS API
+ * - ZÉRO cache local : aucune donnée persistée dans localStorage ou CacheStorage
+ * - Notification automatique à chaque requête : SUCCÈS ou "LA REQUÊTE N'EST PAS PASSÉE"
+ * - 2 Utilisateurs réels authentifiés par JWT : Emmanuel & Malan Abdias
  */
 
 const API_BASE = (typeof window !== 'undefined' && window.HORIZON_CONFIG && window.HORIZON_CONFIG.API_URL)
   ? window.HORIZON_CONFIG.API_URL
   : 'https://horizon-service.onrender.com';
-const STORAGE_KEY = 'horizon_service_sqlite_cache_v2';
+
 const SESSION_KEY = 'horizon_service_session_v2';
 
+// Purge immédiate de toute ancienne BDD mise en cache
+try {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem('horizon_service_sqlite_cache_v2');
+    localStorage.removeItem('horizon_service_db');
+  }
+} catch (e) {}
+
 const EMPTY_DATA = {
-  version: '2.0',
+  version: '2.1',
   users: [],
   comptes: [],
   profils: [],
@@ -39,56 +47,97 @@ const EMPTY_DATA = {
 class DataStore {
   constructor() {
     this.apiBase = API_BASE;
-    this.data = this.loadLocalCache();
-    this.syncFromBackend();
+    // Données en mémoire vive pure, aucune lecture dans le cache local
+    this.data = JSON.parse(JSON.stringify(EMPTY_DATA));
+    this.syncFromBackend(true).catch(() => {});
   }
 
-  loadLocalCache() {
+  /**
+   * Moteur centralisé de requêtes HTTP :
+   * 1. Garantit l'absence de cache (headers anti-cache & cache: 'no-store')
+   * 2. Notifie l'utilisateur à chaque requête (succès ou non transmission)
+   */
+  async apiRequest(path, options = {}, actionLabel = 'Requête') {
+    const url = path.startsWith('http') ? path : `${this.apiBase}${path}`;
+    const opts = { ...options };
+
+    const headers = {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      ...(opts.headers || {})
+    };
+
+    if (opts.body && typeof opts.body === 'object' && !(opts.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(opts.body);
+    }
+
+    opts.headers = headers;
+    opts.cache = 'no-store';
+
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        return JSON.parse(stored);
+      const res = await fetch(url, opts);
+
+      let resData = null;
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        resData = await res.json().catch(() => null);
+      } else {
+        resData = await res.text().catch(() => null);
       }
-    } catch (e) {
-      console.warn('Erreur lecture cache local', e);
-    }
-    return JSON.parse(JSON.stringify(EMPTY_DATA));
-  }
 
-  saveLocalCache() {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data));
-    } catch (e) {
-      console.error('Erreur sauvegarde cache local', e);
-    }
-  }
+      if (!res.ok) {
+        const errorMsg = (resData && (resData.message || resData.error)) || `Erreur serveur HTTP ${res.status}`;
+        if (typeof window !== 'undefined' && typeof window.showToast === 'function') {
+          window.showToast(`La requête n'est pas passée (${actionLabel}) : ${errorMsg}`, 'danger', 5500);
+        }
+        const err = new Error(errorMsg);
+        err.status = res.status;
+        err.data = resData;
+        throw err;
+      }
 
-  save(dataToSave = this.data) {
-    this.data = dataToSave;
-    this.saveLocalCache();
+      // Notification de succès pour l'action effectuée
+      if (typeof window !== 'undefined' && typeof window.showToast === 'function') {
+        window.showToast(`Requête réussie : ${actionLabel}`, 'success', 3500);
+      }
+
+      return resData;
+    } catch (err) {
+      // Erreur réseau ou coupure de liaison (la requête n'a pas pu aboutir au serveur)
+      if (!err.status) {
+        const netMsg = `La requête n'est pas passée (${actionLabel}) : impossible de contacter le serveur backend.`;
+        if (typeof window !== 'undefined' && typeof window.showToast === 'function') {
+          window.showToast(netMsg, 'danger', 6000);
+        }
+      }
+      throw err;
+    }
   }
 
   // --- Synchronisation directe avec l'API SQLite ---
-  async syncFromBackend() {
+  async syncFromBackend(isInitial = false) {
     try {
-      const res = await fetch(`${API_BASE}/api/data`);
-      if (res.ok) {
-        const liveData = await res.json();
+      const liveData = await this.apiRequest('/api/data', { method: 'GET' }, 'Synchronisation des données');
+      if (liveData) {
         this.data = {
           ...EMPTY_DATA,
           ...liveData
         };
-        this.saveLocalCache();
-        console.log('✅ Synchronisé avec la base SQLite :', {
-          clients: this.data.clients.length,
-          abonnements: this.data.abonnements.length,
-          comptes: this.data.comptes.length,
-          profils: this.data.profils.length
+        console.log('✅ Données chargées depuis SQLite direct (sans cache local) :', {
+          clients: this.data.clients?.length || 0,
+          abonnements: this.data.abonnements?.length || 0,
+          comptes: this.data.comptes?.length || 0,
+          profils: this.data.profils?.length || 0
         });
         return this.data;
       }
     } catch (e) {
-      console.warn('Backend non joignable, utilisation du cache local:', e.message);
+      if (!isInitial) {
+        console.warn('Backend non joignable :', e.message);
+      }
+      throw e;
     }
     return this.data;
   }
@@ -102,20 +151,17 @@ class DataStore {
   }
 
   async updateRelanceConfig(cfg) {
-    this.data.relanceConfig = {
+    const updated = {
       ...this.getRelanceConfig(),
       ...cfg
     };
-    this.saveLocalCache();
-    try {
-      await fetch(`${API_BASE}/api/settings/relance`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(this.data.relanceConfig)
-      });
-    } catch (e) {
-      console.error('Erreur synchro relanceConfig', e);
-    }
+
+    await this.apiRequest('/api/settings/relance', {
+      method: 'POST',
+      body: updated
+    }, 'Sauvegarde configuration relance');
+
+    this.data.relanceConfig = updated;
     return this.data.relanceConfig;
   }
 
@@ -131,13 +177,12 @@ class DataStore {
   async authenticate(email, password) {
     this.lastAuthError = null;
     try {
-      const res = await fetch(`${API_BASE}/auth/login`, {
+      const result = await this.apiRequest('/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-      const result = await res.json().catch(() => ({}));
-      if (res.ok && result.data && result.data.user) {
+        body: { email, password }
+      }, 'Connexion');
+
+      if (result && result.data && result.data.user) {
         const u = result.data.user;
         const session = {
           userId: u.id,
@@ -150,22 +195,23 @@ class DataStore {
           loginTime: new Date().toISOString()
         };
         localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-        await this.syncFromBackend();
+        await this.syncFromBackend(true).catch(() => {});
         return session;
       } else {
-        this.lastAuthError = (result && (result.message || result.error)) || 'Identifiants incorrects. Veuillez vérifier votre adresse e-mail ou mot de passe.';
+        const msg = (result && (result.message || result.error)) || 'Identifiants incorrects.';
+        this.lastAuthError = msg;
+        throw new Error(msg);
       }
     } catch (e) {
-      console.error('Erreur authentification backend:', e);
-      this.lastAuthError = `Impossible de joindre le serveur backend (${API_BASE}). Vérifiez qu'il est en cours d'exécution.`;
+      this.lastAuthError = e.message || 'La requête de connexion a échoué.';
+      return null;
     }
-    return null;
   }
 
   clearSession() {
     const current = this.getCurrentSession();
     if (current) {
-      this.logAction(current.name, 'DÉCONNEXION', `Déconnexion de ${current.name}`);
+      this.logAction(current.name, 'DÉCONNEXION', `Déconnexion de ${current.name}`).catch(() => {});
     }
     localStorage.removeItem(SESSION_KEY);
   }
@@ -184,70 +230,52 @@ class DataStore {
       statut: subData.statut || 'actif'
     };
 
+    await this.apiRequest('/api/abonnements', {
+      method: 'POST',
+      body: newSub
+    }, 'Création abonnement');
+
     this.data.abonnements.unshift(newSub);
-    this.saveLocalCache();
-
-    try {
-      await fetch(`${API_BASE}/api/abonnements`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newSub)
-      });
-    } catch (e) {
-      console.error('Erreur synchro createAbonnement', e);
-    }
-
     return newSub;
   }
 
   async updateAbonnement(id, updatedFields) {
     const idx = this.data.abonnements.findIndex(s => s.id === id);
-    if (idx !== -1) {
-      this.data.abonnements[idx] = { ...this.data.abonnements[idx], ...updatedFields };
-      this.saveLocalCache();
+    if (idx === -1) throw new Error('Abonnement introuvable');
 
-      try {
-        await fetch(`${API_BASE}/api/abonnements/${id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(this.data.abonnements[idx])
-        });
-      } catch (e) {
-        console.error('Erreur synchro updateAbonnement', e);
-      }
-      return this.data.abonnements[idx];
-    }
-    return null;
+    const updated = { ...this.data.abonnements[idx], ...updatedFields };
+
+    await this.apiRequest(`/api/abonnements/${id}`, {
+      method: 'PUT',
+      body: updated
+    }, 'Mise à jour abonnement');
+
+    this.data.abonnements[idx] = updated;
+    return updated;
   }
 
   async deleteAbonnement(id) {
-    this.data.abonnements = this.data.abonnements.filter(s => s.id !== id);
-    this.saveLocalCache();
+    await this.apiRequest(`/api/abonnements/${id}`, {
+      method: 'DELETE'
+    }, 'Suppression abonnement');
 
-    try {
-      await fetch(`${API_BASE}/api/abonnements/${id}`, { method: 'DELETE' });
-    } catch (e) {
-      console.error('Erreur synchro deleteAbonnement', e);
-    }
+    this.data.abonnements = this.data.abonnements.filter(s => s.id !== id);
     return true;
   }
 
   async renewSubscription(id) {
     const sub = this.data.abonnements.find(s => s.id === id);
-    if (!sub) return null;
+    if (!sub) throw new Error('Abonnement introuvable');
+
+    await this.apiRequest(`/api/abonnements/${id}/renew`, {
+      method: 'POST'
+    }, 'Renouvellement abonnement');
 
     const oldEnd = new Date(sub.dateFin);
     const newEnd = new Date(oldEnd);
     newEnd.setMonth(newEnd.getMonth() + 1);
     sub.dateFin = newEnd.toISOString().split('T')[0];
     sub.statut = 'actif';
-    this.saveLocalCache();
-
-    try {
-      await fetch(`${API_BASE}/api/abonnements/${id}/renew`, { method: 'POST' });
-    } catch (e) {
-      console.error('Erreur synchro renewSubscription', e);
-    }
     return sub;
   }
 
@@ -263,51 +291,40 @@ class DataStore {
       notes: clientData.notes ? clientData.notes.trim() : ''
     };
 
-    this.data.clients.unshift(newClient);
-    this.saveLocalCache();
+    await this.apiRequest('/api/clients', {
+      method: 'POST',
+      body: newClient
+    }, `Ajout client (${newClient.nom})`);
 
-    try {
-      await fetch(`${API_BASE}/api/clients`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newClient)
-      });
-    } catch (e) {
-      console.error('Erreur synchro createClient', e);
-    }
+    this.data.clients.unshift(newClient);
     return newClient;
   }
 
   async updateClient(id, updatedFields) {
     const idx = this.data.clients.findIndex(c => c.id === id);
-    if (idx !== -1) {
-      this.data.clients[idx] = { ...this.data.clients[idx], ...updatedFields };
-      this.saveLocalCache();
+    if (idx === -1) throw new Error('Client introuvable');
 
-      try {
-        await fetch(`${API_BASE}/api/clients/${id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(this.data.clients[idx])
-        });
-      } catch (e) {
-        console.error('Erreur synchro updateClient', e);
-      }
-      return this.data.clients[idx];
-    }
-    return null;
+    const updated = { ...this.data.clients[idx], ...updatedFields };
+
+    await this.apiRequest(`/api/clients/${id}`, {
+      method: 'PUT',
+      body: updated
+    }, `Mise à jour client (${updated.nom})`);
+
+    this.data.clients[idx] = updated;
+    return updated;
   }
 
   async deleteClient(id) {
+    const cli = this.data.clients.find(c => c.id === id);
+    const nom = cli ? cli.nom : id;
+
+    await this.apiRequest(`/api/clients/${id}`, {
+      method: 'DELETE'
+    }, `Suppression client (${nom})`);
+
     this.data.clients = this.data.clients.filter(c => c.id !== id);
     this.data.abonnements = this.data.abonnements.filter(s => s.clientId !== id);
-    this.saveLocalCache();
-
-    try {
-      await fetch(`${API_BASE}/api/clients/${id}`, { method: 'DELETE' });
-    } catch (e) {
-      console.error('Erreur synchro deleteClient', e);
-    }
     return true;
   }
 
@@ -331,53 +348,42 @@ class DataStore {
       notes: compteData.notes ? compteData.notes.trim() : ''
     };
 
-    this.data.comptes.unshift(newCompte);
-    this.saveLocalCache();
+    await this.apiRequest('/api/comptes', {
+      method: 'POST',
+      body: newCompte
+    }, `Création compte (${newCompte.libelle})`);
 
-    try {
-      await fetch(`${API_BASE}/api/comptes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newCompte)
-      });
-    } catch (e) {
-      console.error('Erreur synchro createCompte', e);
-    }
+    this.data.comptes.unshift(newCompte);
     return newCompte;
   }
 
   async updateCompte(id, updatedFields) {
     const idx = this.data.comptes.findIndex(c => c.id === id);
-    if (idx !== -1) {
-      this.data.comptes[idx] = { ...this.data.comptes[idx], ...updatedFields };
-      this.saveLocalCache();
+    if (idx === -1) throw new Error('Compte introuvable');
 
-      try {
-        await fetch(`${API_BASE}/api/comptes/${id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(this.data.comptes[idx])
-        });
-      } catch (e) {
-        console.error('Erreur synchro updateCompte', e);
-      }
-      return this.data.comptes[idx];
-    }
-    return null;
+    const updated = { ...this.data.comptes[idx], ...updatedFields };
+
+    await this.apiRequest(`/api/comptes/${id}`, {
+      method: 'PUT',
+      body: updated
+    }, `Mise à jour compte (${updated.libelle})`);
+
+    this.data.comptes[idx] = updated;
+    return updated;
   }
 
   async deleteCompte(id) {
+    const cpt = this.data.comptes.find(c => c.id === id);
+    const libelle = cpt ? cpt.libelle : id;
+
+    await this.apiRequest(`/api/comptes/${id}`, {
+      method: 'DELETE'
+    }, `Suppression compte (${libelle})`);
+
     this.data.comptes = this.data.comptes.filter(c => c.id !== id);
     const profilsToDelete = this.data.profils.filter(p => p.compteId === id).map(p => p.id);
     this.data.profils = this.data.profils.filter(p => p.compteId !== id);
     this.data.abonnements = this.data.abonnements.filter(s => !profilsToDelete.includes(s.profilId));
-    this.saveLocalCache();
-
-    try {
-      await fetch(`${API_BASE}/api/comptes/${id}`, { method: 'DELETE' });
-    } catch (e) {
-      console.error('Erreur synchro deleteCompte', e);
-    }
     return true;
   }
 
@@ -393,51 +399,40 @@ class DataStore {
       compteId: profilData.compteId
     };
 
-    this.data.profils.push(newProfil);
-    this.saveLocalCache();
+    await this.apiRequest('/api/profils', {
+      method: 'POST',
+      body: newProfil
+    }, `Création profil (${newProfil.nom})`);
 
-    try {
-      await fetch(`${API_BASE}/api/profils`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newProfil)
-      });
-    } catch (e) {
-      console.error('Erreur synchro createProfil', e);
-    }
+    this.data.profils.push(newProfil);
     return newProfil;
   }
 
   async updateProfil(id, updatedFields) {
     const idx = this.data.profils.findIndex(p => p.id === id);
-    if (idx !== -1) {
-      this.data.profils[idx] = { ...this.data.profils[idx], ...updatedFields };
-      this.saveLocalCache();
+    if (idx === -1) throw new Error('Profil introuvable');
 
-      try {
-        await fetch(`${API_BASE}/api/profils/${id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(this.data.profils[idx])
-        });
-      } catch (e) {
-        console.error('Erreur synchro updateProfil', e);
-      }
-      return this.data.profils[idx];
-    }
-    return null;
+    const updated = { ...this.data.profils[idx], ...updatedFields };
+
+    await this.apiRequest(`/api/profils/${id}`, {
+      method: 'PUT',
+      body: updated
+    }, `Mise à jour profil (${updated.nom})`);
+
+    this.data.profils[idx] = updated;
+    return updated;
   }
 
   async deleteProfil(id) {
+    const prof = this.data.profils.find(p => p.id === id);
+    const nom = prof ? prof.nom : id;
+
+    await this.apiRequest(`/api/profils/${id}`, {
+      method: 'DELETE'
+    }, `Suppression profil (${nom})`);
+
     this.data.profils = this.data.profils.filter(p => p.id !== id);
     this.data.abonnements = this.data.abonnements.filter(s => s.profilId !== id);
-    this.saveLocalCache();
-
-    try {
-      await fetch(`${API_BASE}/api/profils/${id}`, { method: 'DELETE' });
-    } catch (e) {
-      console.error('Erreur synchro deleteProfil', e);
-    }
     return true;
   }
 
@@ -454,79 +449,62 @@ class DataStore {
       motif: mvtData.motif ? mvtData.motif.trim() : ''
     };
 
-    this.data.mouvementsCaisse.unshift(newMvt);
-    this.saveLocalCache();
+    await this.apiRequest('/api/caisse/mouvements', {
+      method: 'POST',
+      body: newMvt
+    }, `Enregistrement caisse (${newMvt.type} ${newMvt.montant} FCFA)`);
 
-    try {
-      const res = await fetch(`${API_BASE}/api/caisse/mouvements`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newMvt)
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    } catch (e) {
-      console.error('Erreur synchro createMouvement', e);
-      throw e;
-    }
+    this.data.mouvementsCaisse.unshift(newMvt);
     return newMvt;
   }
 
   async updateMouvementCaisse(id, mvtData) {
     const idx = this.data.mouvementsCaisse.findIndex(m => m.id === id);
+    const payload = {
+      ...mvtData,
+      date: mvtData.date || (idx !== -1 ? this.data.mouvementsCaisse[idx].date : new Date().toISOString().split('T')[0])
+    };
+
+    await this.apiRequest(`/api/caisse/mouvements/${id}`, {
+      method: 'PUT',
+      body: payload
+    }, 'Modification mouvement caisse');
+
     if (idx !== -1) {
       this.data.mouvementsCaisse[idx] = {
         ...this.data.mouvementsCaisse[idx],
         ...mvtData,
         montant: Number(mvtData.montant),
-        date: mvtData.date || this.data.mouvementsCaisse[idx].date || new Date().toISOString().split('T')[0]
+        date: payload.date
       };
-      this.saveLocalCache();
-    }
-
-    try {
-      const res = await fetch(`${API_BASE}/api/caisse/mouvements/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...mvtData,
-          date: mvtData.date || (idx !== -1 ? this.data.mouvementsCaisse[idx].date : new Date().toISOString().split('T')[0])
-        })
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    } catch (e) {
-      console.error('Erreur synchro updateMouvement', e);
-      throw e;
     }
     return true;
   }
 
   async deleteMouvementCaisse(id) {
-    this.data.mouvementsCaisse = this.data.mouvementsCaisse.filter(m => m.id !== id);
-    this.saveLocalCache();
+    await this.apiRequest(`/api/caisse/mouvements/${id}`, {
+      method: 'DELETE'
+    }, 'Suppression mouvement caisse');
 
-    try {
-      await fetch(`${API_BASE}/api/caisse/mouvements/${id}`, { method: 'DELETE' });
-    } catch (e) {
-      console.error('Erreur synchro deleteMouvement', e);
-    }
+    this.data.mouvementsCaisse = this.data.mouvementsCaisse.filter(m => m.id !== id);
     return true;
   }
 
   async updateCaissePointage(reel, notes = '') {
-    this.data.caisse.dernierPointageReel = Number(reel);
-    this.data.caisse.dateDernierPointage = new Date().toISOString().split('T')[0];
-    this.data.caisse.notes = notes;
-    this.saveLocalCache();
+    const payload = {
+      dernierPointageReel: Number(reel),
+      dateDernierPointage: new Date().toISOString().split('T')[0],
+      notes
+    };
 
-    try {
-      await fetch(`${API_BASE}/api/caisse/pointage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(this.data.caisse)
-      });
-    } catch (e) {
-      console.error('Erreur synchro pointage', e);
-    }
+    await this.apiRequest('/api/caisse/pointage', {
+      method: 'POST',
+      body: payload
+    }, 'Mise à jour pointage caisse');
+
+    this.data.caisse.dernierPointageReel = payload.dernierPointageReel;
+    this.data.caisse.dateDernierPointage = payload.dateDernierPointage;
+    this.data.caisse.notes = notes;
     return this.data.caisse;
   }
 
@@ -547,11 +525,11 @@ class DataStore {
   }
 
   getUrgentAbonnements(referenceDateStr = '2026-10-22') {
-    return this.data.abonnements
+    return (this.data.abonnements || [])
       .map(ab => {
-        const client = this.data.clients.find(c => c.id === ab.clientId);
-        const profil = this.data.profils.find(p => p.id === ab.profilId);
-        const compte = profil ? this.data.comptes.find(c => c.id === profil.compteId) : null;
+        const client = (this.data.clients || []).find(c => c.id === ab.clientId);
+        const profil = (this.data.profils || []).find(p => p.id === ab.profilId);
+        const compte = profil ? (this.data.comptes || []).find(c => c.id === profil.compteId) : null;
         const status = this.getAbonnementStatus(ab, referenceDateStr);
         return { ...ab, client, profil, compte, status };
       })
@@ -560,18 +538,17 @@ class DataStore {
   }
 
   getProfilesWithCodeToRenew() {
-    return this.data.profils
+    return (this.data.profils || [])
       .filter(p => p.statut === 'a_renouveler')
       .map(p => {
-        const compte = this.data.comptes.find(c => c.id === p.compteId);
-        const ab = this.data.abonnements.find(a => a.profilId === p.id);
-        const client = ab ? this.data.clients.find(c => c.id === ab.clientId) : null;
+        const compte = (this.data.comptes || []).find(c => c.id === p.compteId);
+        const ab = (this.data.abonnements || []).find(a => a.profilId === p.id);
+        const client = ab ? (this.data.clients || []).find(c => c.id === ab.clientId) : null;
         return { ...p, compte, client, ab };
       });
   }
 
   getHistoriqueMensuel() {
-    // Calcul réel depuis la BDD uniquement — aucune donnée fictive
     const caTotal = (this.data.abonnements || []).reduce((sum, a) => sum + (Number(a.tarif) || 0), 0);
     const rechargesTotal = (this.data.mouvementsCaisse || [])
       .filter(m => m.type === 'recharge')
@@ -579,7 +556,6 @@ class DataStore {
     const benefice = Math.max(0, caTotal - rechargesTotal);
     const margePct = caTotal > 0 ? Math.round((benefice / caTotal) * 100) : 0;
 
-    // Si l'API fournit un historique mensuel, on le retourne directement
     if (this.data.historiqueMensuel && this.data.historiqueMensuel.length > 0) {
       return this.data.historiqueMensuel.map(m => ({
         ...m,
@@ -587,7 +563,6 @@ class DataStore {
       }));
     }
 
-    // Sinon : uniquement le mois en cours, calculé depuis la BDD
     const now = new Date();
     const moisId = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const moisLabel = now.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
@@ -628,7 +603,6 @@ class DataStore {
     const margePctMois = caTotal > 0 ? Math.round((beneficeMois / caTotal) * 100) : 0;
 
     return {
-      // Propriétés requises pour l'affichage Dashboard
       caMois: caTotal,
       beneficeMois,
       margePctMois,
@@ -636,8 +610,6 @@ class DataStore {
       totalAbonnements: totalAbonnementsActifs,
       capaciteTotale: placesMax,
       placesLibres,
-
-      // Statistiques globales
       totalAbonnementsActifs,
       totalClients,
       totalComptes,
@@ -674,15 +646,15 @@ class DataStore {
       detail
     };
     this.data.auditLogs.unshift(newLog);
-    this.saveLocalCache();
 
     try {
-      await fetch(`${API_BASE}/api/audit`, {
+      await this.apiRequest('/api/audit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newLog)
-      });
-    } catch (e) {}
+        body: newLog
+      }, 'Journalisation audit');
+    } catch (e) {
+      // Échec silencieux pour l'audit pour ne pas bloquer l'utilisateur
+    }
     return newLog;
   }
 }
