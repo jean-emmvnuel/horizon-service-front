@@ -3,7 +3,7 @@
  * Cache statique pour fonctionnement hors-ligne partiel
  */
 
-const CACHE_NAME = 'horizon-service-v10';
+const CACHE_NAME = 'horizon-service-v11';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -15,6 +15,7 @@ const STATIC_ASSETS = [
   './apple-touch-icon.png',
   './icon-192.png',
   './icon-512.png',
+  './og-preview.png',
   './manifest.json'
 ];
 
