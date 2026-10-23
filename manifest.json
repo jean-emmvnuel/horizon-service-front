@@ -1,0 +1,38 @@
+{
+  "name": "Horizon Service — Gestion Abonnements",
+  "short_name": "Horizon",
+  "description": "Plateforme de gestion opérationnelle et financière d'Horizon Service : abonnements Netflix partagés, clients, comptes, graphiques et suivi de caisse.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0c0d12",
+  "theme_color": "#e50914",
+  "lang": "fr",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    {
+      "src": "logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Vue d'ensemble",
+      "short_name": "Dashboard",
+      "description": "Accéder au tableau de bord principal",
+      "url": "./index.html#dashboard",
+      "icons": [{ "src": "logo.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Abonnements",
+      "short_name": "Abonnements",
+      "description": "Gérer les abonnements clients",
+      "url": "./index.html#abonnements",
+      "icons": [{ "src": "logo.svg", "sizes": "any" }]
+    }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
+}

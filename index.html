@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Horizon Service — Tableau de Bord de Gestion & Authentification</title>
+  <meta name="description" content="Plateforme de gestion opérationnelle et financière d'Horizon Service : abonnements, comptes, profils, graphiques et suivi de caisse.">
+  <meta name="theme-color" content="#e50914">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Horizon Service">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="logo.svg">
+  <link rel="apple-touch-icon" href="logo.svg">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- =====================================================================
+       VUE 1 : ÉCRAN DE CONNEXION (2 UTILISATEURS UNIQUEMENT)
+       ===================================================================== -->
+  <div id="view-login" class="login-viewport">
+    <div class="login-container">
+      
+      <div class="login-brand-header">
+        <img src="logo.svg" alt="Horizon Service" class="login-logo-img" width="56" height="56" style="margin-bottom: var(--space-2); filter: drop-shadow(0 4px 14px rgba(229, 9, 20, 0.45));">
+        <div class="brand-name" style="font-size: 1.5rem;">HORIZON <span>SERVICE</span></div>
+        <p class="text-sm text-muted">Plateforme de gestion opérationnelle & financière</p>
+      </div>
+
+      <div class="login-card">
+        <h1 class="login-card-title">Connexion</h1>
+        <p class="login-card-subtitle">Accès réservé au Fondateur et à son Associé</p>
+
+        <div id="login-error-msg" class="form-error" style="display: none; margin-bottom: var(--space-4); background-color: var(--status-danger-bg); border: 1px solid var(--status-danger-border); padding: var(--space-3); border-radius: var(--radius-md);"></div>
+
+        <form id="form-login" onsubmit="event.preventDefault(); return false;">
+          <div class="form-group">
+            <label class="form-label" for="login-email">Adresse e-mail *</label>
+            <input type="email" id="login-email" class="form-control" placeholder="nom@horizonservice.ci" required autocomplete="username">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="login-password">Mot de passe *</label>
+            <div class="password-input-wrapper">
+              <input type="password" id="login-password" class="form-control" placeholder="••••••••••••" required autocomplete="current-password">
+              <button type="button" id="btn-toggle-password" class="btn-show-password" title="Afficher / Masquer le mot de passe" aria-label="Afficher le mot de passe">
+                <svg id="eye-icon-show" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg id="eye-icon-hide" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block btn-lg" style="margin-top: var(--space-2);">
+            <span>Se connecter</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </button>
+        </form>
+      </div>
+
+      <div class="login-footer-notes">
+        Accès interne sécurisé — Monnaie : Franc CFA (FCFA) — Côte d'Ivoire.
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       VUE 2 : TABLEAU DE BORD DE GESTION (/admin)
+       ===================================================================== -->
+  <div id="view-admin" class="admin-layout" style="display: none;">
+
+    <header class="admin-navbar">
+      <div class="admin-nav-left">
+        <div class="brand-logo">
+          <img src="logo.svg" alt="Horizon Service" class="nav-logo-img" width="34" height="34" style="filter: drop-shadow(0 2px 8px rgba(229, 9, 20, 0.35));">
+          <div class="brand-name" style="font-size: 1.15rem;">HORIZON <span>GESTION</span></div>
+        </div>
+        <span id="admin-role-badge" class="admin-badge-role">Administrateur</span>
+      </div>
+
+      <div class="admin-nav-right">
+        <div class="user-session-info">
+          <span id="user-display-name" class="user-name-display">Utilisateur</span>
+          <button id="btn-logout" class="btn btn-outline btn-sm" title="Fermer la session">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            <span>Déconnexion</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <nav class="admin-tabs-bar" role="tablist">
+      <button class="tab-btn active" data-tab="tab-dashboard" role="tab">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        <span>Vue d'ensemble</span>
+        <span id="badge-count-urgents" class="tab-badge" title="Abonnements à terme ou échus">0</span>
+      </button>
+
+      <button class="tab-btn" data-tab="tab-abonnements" role="tab">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+        <span>Abonnements (<span id="tab-sub-count">0</span>)</span>
+      </button>
+
+      <button class="tab-btn" data-tab="tab-clients" role="tab">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>Clients</span>
+      </button>
+
+      <button class="tab-btn" data-tab="tab-comptes" role="tab">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+        <span>Comptes & Profils</span>
+      </button>
+
+      <button class="tab-btn" data-tab="tab-finances" role="tab">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <span>Caisse & Finances</span>
+      </button>
+
+      <button class="tab-btn" data-tab="tab-settings" role="tab">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Paramètres & Relances</span>
+      </button>
+
+      <button class="tab-btn" data-tab="tab-audit" role="tab">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <span>Audit</span>
+      </button>
+    </nav>
+
+    <main class="admin-main">
+
+      <!-- ==================== ONGLET 1 : DASHBOARD ==================== -->
+      <section id="tab-dashboard" class="admin-tab-pane">
+        
+        <div class="admin-header-row">
+          <div class="admin-title-group">
+            <h2>Vue d'ensemble de l'activité</h2>
+            <p class="text-muted" id="dashboard-last-sync">Chargement des données depuis la base…</p>
+          </div>
+          <div style="display:flex; gap: var(--space-2); align-items: center;">
+            <button id="btn-refresh-dashboard" class="btn btn-secondary btn-icon" title="Rafraîchir les données depuis la base de données">
+              <svg id="icon-refresh-dashboard" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              <span>Rafraîchir</span>
+            </button>
+            <button id="btn-open-new-sub-modal" class="btn btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>Nouvel Abonnement</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Grille des Indicateurs KPI (Temps réel) -->
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-header">
+              <span class="kpi-code">K01 — Chiffre d'affaires</span>
+              <span class="badge badge-neutral">Octobre 2026</span>
+            </div>
+            <div id="kpi-ca-mois" class="kpi-value">0 FCFA</div>
+            <div class="kpi-subtext" id="kpi-ca-cumul">Cumul annuel consolidé</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-header">
+              <span class="kpi-code">K04 — Bénéfice Brut</span>
+              <span class="badge badge-success">Mois courant</span>
+            </div>
+            <div id="kpi-benefice-mois" class="kpi-value text-success">0 FCFA</div>
+            <div class="kpi-subtext" id="kpi-benefice-cumul">Après déduction des recharges</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-header">
+              <span class="kpi-code">K05 — Taux de Marge</span>
+              <span class="badge badge-neutral">Rentabilité</span>
+            </div>
+            <div id="kpi-marge-mois" class="kpi-value">0%</div>
+            <div class="kpi-subtext">Objectif : > 50%</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-header">
+              <span class="kpi-code">K10 — Taux d'Occupation</span>
+              <span class="badge badge-neutral" id="kpi-capacite-badge">Capacité</span>
+            </div>
+            <div id="kpi-occupation" class="kpi-value">0%</div>
+            <div id="kpi-places-libres" class="kpi-subtext">0 places libres</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-header">
+              <span class="kpi-code">K18 — Caisse Théorique</span>
+              <span class="badge badge-neutral">Bénéfice restant</span>
+            </div>
+            <div id="kpi-caisse-theorique" class="kpi-value">0 FCFA</div>
+            <div class="kpi-subtext" id="kpi-caisse-theorique-sub">Solde théorique attendu</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-header">
+              <span class="kpi-code">K20 — Écart de Caisse</span>
+              <span id="badge-ecart-statut" class="badge badge-neutral">Audit</span>
+            </div>
+            <div id="kpi-ecart-caisse" class="kpi-value">0 FCFA</div>
+            <div class="kpi-subtext" id="kpi-pointage-reel-sub">Constaté en caisse réelle</div>
+          </div>
+        </div>
+
+        <!-- ================= GRAPHIQUES RÉACTIFS VISUELS ================= -->
+        <div class="charts-section-grid">
+          <!-- Graphique 1 : Évolution Chiffre d'Affaires vs Bénéfice vs Recharge -->
+          <div class="chart-card">
+            <div class="chart-header">
+              <h3 class="card-title">Performance financière (Avril à Octobre 2026)</h3>
+              <div class="chart-legend">
+                <div class="legend-item"><span class="legend-dot" style="background: var(--chart-color-ca);"></span> CA</div>
+                <div class="legend-item"><span class="legend-dot" style="background: var(--chart-color-benefice);"></span> Bénéfice</div>
+                <div class="legend-item"><span class="legend-dot" style="background: var(--chart-color-recharge);"></span> Recharge</div>
+              </div>
+            </div>
+            <div class="svg-chart-container" id="container-chart-monthly">
+              <!-- Rendu SVG réactif généré par JS -->
+            </div>
+          </div>
+
+          <!-- Graphique 2 : Répartition et Occupation des Comptes -->
+          <div class="chart-card">
+            <div class="chart-header">
+              <h3 class="card-title">Taux d'occupation par Compte</h3>
+              <span class="badge badge-neutral">Capacité 15 / compte</span>
+            </div>
+            <div class="svg-chart-container" id="container-chart-accounts">
+              <!-- Rendu SVG Donut / Gauges généré par JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Section Prioritaire : À traiter aujourd'hui (EXG-DAS-02) -->
+        <div class="card" style="margin-bottom: var(--space-6); border-color: var(--status-warning-border);">
+          <div class="card-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="text-warning font-bold">⚠️</span>
+              <h3 class="card-title">À traiter aujourd'hui : Échéances proches & Abonnements échus</h3>
+            </div>
+            <span class="badge badge-warning">Action prioritaire</span>
+          </div>
+          <p class="text-sm text-secondary" style="margin-bottom: var(--space-4);">
+            Ces abonnements arrivent à terme dans les 7 jours ou sont échus. Utilisez le bouton WhatsApp pour envoyer un rappel pré-rempli sans rupture d'accès.
+          </p>
+
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Client</th>
+                  <th>Compte & Profil</th>
+                  <th>Date d'échéance</th>
+                  <th>Statut</th>
+                  <th>Tarif</th>
+                  <th>Actions directes</th>
+                </tr>
+              </thead>
+              <tbody id="dashboard-urgents-list">
+                <!-- Rendu JS -->
+              </tbody>
+            </table>
+          </div>
+          <!-- MOBILE : Cartes urgents -->
+          <div id="mobile-urgents-list" class="mobile-cards-list">
+            <!-- Rendu JS Mobile -->
+          </div>
+        </div>
+
+        <!-- Tâches Codes à renouveler (❌) -->
+        <div class="card" style="margin-bottom: var(--space-6); border-color: var(--status-danger-border);">
+          <div class="card-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="text-danger font-bold">❌</span>
+              <h3 class="card-title">Sécurité : Codes PIN de profils à renouveler</h3>
+            </div>
+            <span class="badge badge-danger">Sécurité profil</span>
+          </div>
+          <p class="text-sm text-secondary" style="margin-bottom: var(--space-3);">
+            Ces profils nécessitent un changement de code PIN dans Netflix suite au départ d'anciens abonnés.
+          </p>
+          <div id="dashboard-codes-list" class="profiles-list">
+            <!-- Rendu JS -->
+          </div>
+        </div>
+
+        <!-- Historique mensuel consolidé (Tableau accessible) -->
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Données mensuelles certifiées (CDC Section 4.1)</h3>
+            <span class="badge badge-neutral">Tableau accessible</span>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Mois</th>
+                  <th>Chiffre d'affaires (K01)</th>
+                  <th>Coût Recharge Netflix (K03)</th>
+                  <th>Bénéfice Brut (K04)</th>
+                  <th>Taux de marge (K05)</th>
+                </tr>
+              </thead>
+              <tbody id="table-historique-mensuel">
+                <!-- Rendu JS -->
+              </tbody>
+            </table>
+          </div>
+          <!-- MOBILE : Cartes historique -->
+          <div id="mobile-historique-list" class="mobile-cards-list">
+            <!-- Rendu JS Mobile -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== ONGLET 2 : ABONNEMENTS (CRUD) ==================== -->
+      <section id="tab-abonnements" class="admin-tab-pane" style="display: none;">
+        <div class="admin-header-row">
+          <div class="admin-title-group">
+            <h2>Gestion des Abonnements (CRUD)</h2>
+            <p class="text-muted">Création, modification, renouvellement et suppression des abonnements.</p>
+          </div>
+          <div style="display:flex; gap: var(--space-2); align-items: center;">
+            <button id="btn-refresh-abonnements" class="btn btn-secondary btn-icon" title="Rafraîchir">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              <span>Rafraîchir</span>
+            </button>
+            <button class="btn btn-primary" onclick="document.getElementById('btn-open-new-sub-modal').click()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>Nouvel Abonnement</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="filter-toolbar">
+          <div class="filter-pills">
+            <button class="filter-pill active" data-filter-sub="all">Tous</button>
+            <button class="filter-pill" data-filter-sub="urgent">Urgents / À terme</button>
+            <button class="filter-pill" data-filter-sub="actif">Actifs</button>
+            <button class="filter-pill" data-filter-sub="echu">Échus</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Client</th>
+                  <th>Compte & Profil</th>
+                  <th>Date début</th>
+                  <th>Date fin</th>
+                  <th>Statut</th>
+                  <th>Tarif</th>
+                  <th>Actions CRUD</th>
+                </tr>
+              </thead>
+              <tbody id="table-abonnements-body">
+                <!-- Rendu JS -->
+              </tbody>
+            </table>
+          </div>
+          <!-- MOBILE : Cartes abonnements -->
+          <div id="mobile-abonnements-list" class="mobile-cards-list">
+            <!-- Rendu JS Mobile -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== ONGLET 3 : CLIENTS (CRUD) ==================== -->
+      <section id="tab-clients" class="admin-tab-pane" style="display: none;">
+        <div class="admin-header-row">
+          <div class="admin-title-group">
+            <h2>Fichier Clients &amp; CRM (CRUD)</h2>
+            <p class="text-muted">Gestion complète des fiches clients : ajout, modification, historique et suppression.</p>
+          </div>
+          <div style="display:flex; gap: var(--space-2); align-items: center;">
+            <button id="btn-refresh-clients" class="btn btn-secondary btn-icon" title="Rafraîchir">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              <span>Rafraîchir</span>
+            </button>
+            <button id="btn-open-new-client-modal" class="btn btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>Nouveau Client</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="filter-toolbar">
+          <div class="search-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="input-search-clients" class="form-control" placeholder="Rechercher par nom, téléphone (+225) ou ancien id (71, 90)...">
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Nom & Ancien ID</th>
+                  <th>Téléphone WhatsApp</th>
+                  <th>Abonnements</th>
+                  <th>Total Versé</th>
+                  <th>Origine</th>
+                  <th>Actions CRUD</th>
+                </tr>
+              </thead>
+              <tbody id="clients-table-body">
+                <!-- Rendu JS -->
+              </tbody>
+            </table>
+          </div>
+          <!-- MOBILE : Cartes clients -->
+          <div id="mobile-clients-list" class="mobile-cards-list">
+            <!-- Rendu JS Mobile -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== ONGLET 4 : COMPTES & PROFILS (CRUD) ==================== -->
+      <section id="tab-comptes" class="admin-tab-pane" style="display: none;">
+        <div class="admin-header-row">
+          <div class="admin-title-group">
+            <h2>Comptes Netflix &amp; Profils (CRUD)</h2>
+            <p class="text-muted">Création de comptes, configuration des profils, mot de passe masqué et codes PIN 4 chiffres.</p>
+          </div>
+          <div style="display:flex; gap: var(--space-2); align-items: center;">
+            <button id="btn-refresh-comptes" class="btn btn-secondary btn-icon" title="Rafraîchir">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              <span>Rafraîchir</span>
+            </button>
+            <button id="btn-open-new-compte-modal" class="btn btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>Nouveau Compte Netflix</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="comptes-cards-container" class="accounts-grid">
+          <!-- Rendu JS -->
+        </div>
+      </section>
+
+      <!-- ==================== ONGLET 5 : CAISSE & FINANCES (CRUD) ==================== -->
+      <section id="tab-finances" class="admin-tab-pane" style="display: none;">
+        <div class="admin-header-row">
+          <div class="admin-title-group">
+            <h2>Caisse &amp; Mouvements Financiers (CRUD)</h2>
+            <p class="text-muted">Pointage réel, calcul automatique de l'écart, gestion des recharges et prélèvements d'associés.</p>
+          </div>
+          <div style="display:flex; gap: var(--space-2); align-items: center;">
+            <button id="btn-refresh-finances" class="btn btn-secondary btn-icon" title="Rafraîchir">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              <span>Rafraîchir</span>
+            </button>
+            <button id="btn-open-cash-modal" class="btn btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>Nouveau Pointage / Dépense</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="finance-grid">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Bilan de Caisse (Section 4.3 du CDC)</h3>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: var(--space-3); font-size: var(--text-sm);">
+              <div style="display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle);">
+                <span class="text-muted">Bénéfice cumulé théorique :</span>
+                <span id="fin-benefice-cumule" class="font-bold">0 FCFA</span>
+              </div>
+              <div id="fin-prelevements-details" style="display: flex; flex-direction: column; gap: var(--space-3);">
+                <div style="display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle);">
+                  <span class="text-muted" id="fin-label-prelevement-user">Total Prélèvements Utilisateur :</span>
+                  <span id="fin-val-prelevement-user" class="font-bold">0 FCFA</span>
+                </div>
+              </div>
+              <div style="display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle);">
+                <span class="text-muted">Caisse théorique attendue :</span>
+                <span id="fin-caisse-theorique" class="font-bold text-white">0 FCFA</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle);">
+                <span class="text-muted">Montant réellement présent en caisse :</span>
+                <span id="fin-caisse-reelle" class="font-bold text-success">0 FCFA</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; padding-top: 4px;">
+                <strong>Écart non expliqué :</strong>
+                <span id="fin-caisse-ecart" class="text-success font-bold">0 FCFA</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Journal des Mouvements de Caisse</h3>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Bénéficiaire</th>
+                    <th>Montant</th>
+                    <th>Motif</th>
+                    <th>Actions CRUD</th>
+                  </tr>
+                </thead>
+                <tbody id="table-mouvements-caisse-body">
+                  <!-- Rendu JS -->
+                </tbody>
+              </table>
+            </div>
+            <!-- MOBILE : Cartes mouvements -->
+            <div id="mobile-mouvements-list" class="mobile-cards-list">
+              <!-- Rendu JS Mobile -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== ONGLET 6 : PARAMÈTRES & RELANCES ==================== -->
+      <section id="tab-settings" class="admin-tab-pane" style="display: none;">
+        <div class="admin-header-row">
+          <div class="admin-title-group">
+            <h2>Paramètres & Modèle de Relance WhatsApp</h2>
+            <p class="text-muted">Personnalisez votre message automatique de relance, vos liens de paiement (Wave, OM) et préférences.</p>
+          <div style="display:flex; gap: var(--space-2); align-items: center;">
+            <button id="btn-refresh-settings" class="btn btn-secondary btn-icon" title="Rafraîchir">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              <span>Rafraîchir</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- CARTE : Configuration du message de relance & paiement -->
+        <div class="card" style="margin-bottom: var(--space-6);">
+          <div class="card-header">
+            <h3 class="card-title">Modèle de relance WhatsApp automatique</h3>
+            <span class="badge badge-success">WhatsApp Prêt</span>
+          </div>
+
+          <form id="form-relance-settings">
+            <div style="background: var(--bg-surface-elevated); padding: var(--space-4); border-radius: var(--radius-md); margin-bottom: var(--space-4); border: 1px solid var(--border-subtle);">
+              <div style="font-weight: 700; font-size: var(--text-sm); margin-bottom: var(--space-3); color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                <span>💳</span>
+                <span>Liens de paiement individuels des Associés (Wave, Orange Money, MoMo)</span>
+              </div>
+              <p class="text-xs text-muted" style="margin-bottom: var(--space-3);">
+                Chaque associé dispose de son propre lien de paiement pour les relances. Le lien sélectionné remplacera automatiquement <code>{lienPaiement}</code> dans les messages WhatsApp.
+              </p>
+
+              <div class="form-row">
+                <div class="form-group" style="margin-bottom: var(--space-2);">
+                  <label class="form-label" for="setting-payment-link-emmanuel">Lien Emmanuel (Fondateur) *</label>
+                  <input type="url" id="setting-payment-link-emmanuel" class="form-control font-mono" placeholder="https://pay.wave.com/m/horizon-service-emmanuel" required>
+                </div>
+                <div class="form-group" style="margin-bottom: var(--space-2);">
+                  <label class="form-label" for="setting-payment-link-malan">Lien Malan Abdias (Associé) *</label>
+                  <input type="url" id="setting-payment-link-malan" class="form-control font-mono" placeholder="https://pay.wave.com/m/horizon-service-malan" required>
+                </div>
+              </div>
+              <input type="hidden" id="setting-payment-link" value="https://pay.wave.com/m/horizon-service">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="setting-message-template">Texte du modèle de relance (variables automatiques)</label>
+              <div style="margin-bottom: var(--space-2); display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center;">
+                <span class="text-xs text-muted">Cliquez pour insérer :</span>
+                <button type="button" class="btn btn-xs btn-outline btn-tag" data-tag="{nom}">{nom}</button>
+                <button type="button" class="btn btn-xs btn-outline btn-tag" data-tag="{dateFin}">{dateFin}</button>
+                <button type="button" class="btn btn-xs btn-outline btn-tag" data-tag="{tarif}">{tarif}</button>
+                <button type="button" class="btn btn-xs btn-outline btn-tag" data-tag="{lienPaiement}">{lienPaiement}</button>
+                <button type="button" class="btn btn-xs btn-outline btn-tag" data-tag="{compte}">{compte}</button>
+                <button type="button" class="btn btn-xs btn-outline btn-tag" data-tag="{profil}">{profil}</button>
+              </div>
+              <textarea id="setting-message-template" class="form-control" rows="6" style="resize: vertical; font-family: inherit; line-height: 1.5;" required></textarea>
+            </div>
+
+            <!-- APERÇU EN DIRECT DU MESSAGE -->
+            <div class="form-group">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label class="form-label" style="margin-bottom: 0;">Aperçu en direct (rendu réel que recevra le client)</label>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="text-xs text-muted">Aperçu avec lien de :</span>
+                  <select id="setting-preview-sender-select" class="form-control" style="padding: 2px 8px; font-size: var(--text-xs); height: auto;">
+                    <option value="emmanuel">Emmanuel (Fondateur)</option>
+                    <option value="malan">Malan Abdias (Associé)</option>
+                  </select>
+                </div>
+              </div>
+              <div id="preview-relance-box" style="background-color: rgba(37, 211, 102, 0.08); border: 1px solid rgba(37, 211, 102, 0.3); border-radius: var(--radius-md); padding: var(--space-4); white-space: pre-wrap; font-size: var(--text-sm); line-height: 1.6; color: var(--text-primary);">
+              </div>
+            </div>
+
+            <div style="display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; justify-content: flex-end; margin-top: var(--space-4);">
+              <button type="button" id="btn-reset-relance-template" class="btn btn-secondary">
+                <span>Rétablir le modèle par défaut</span>
+              </button>
+              <button type="submit" class="btn btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                <span>Enregistrer les paramètres de relance</span>
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- CARTE : Sauvegardes & Exports Officiels -->
+        <div class="card" style="border-color: var(--border-strong);">
+          <div class="card-header">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 1.3rem;">📦</span>
+              <div>
+                <h3 class="card-title">Sauvegardes & Exports Officiels</h3>
+                <span class="text-xs text-muted">Données complètes : Abonnements, Clients, Comptes, Profils et Finances</span>
+              </div>
+            </div>
+            <span class="badge badge-success">Données Sécurisées</span>
+          </div>
+          <p class="text-sm text-secondary" style="margin-bottom: var(--space-4);">
+            Téléchargez l'état consolidé sous forme de rapport officiel PDF ou générez une sauvegarde SQL intégrale de la base de données.
+          </p>
+          <div style="display: flex; gap: var(--space-3); flex-wrap: wrap;">
+            <button type="button" id="btn-export-pdf" class="btn btn-secondary" style="display: flex; align-items: center; gap: 8px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              <span>Exporter toutes les données en PDF</span>
+            </button>
+            <button type="button" id="btn-backup-sql" class="btn btn-primary" style="display: flex; align-items: center; gap: 8px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Sauvegarder la base de données (Backup SQL)</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== ONGLET 7 : AUDIT ==================== -->
+      <section id="tab-audit" class="admin-tab-pane" style="display: none;">
+        <div class="admin-header-row">
+          <div class="admin-title-group">
+            <h2>Journal d'Audit & Sécurité</h2>
+            <p class="text-muted">Traçabilité complète des actions effectuées par le Fondateur et son Associé.</p>
+          </div>
+          <div>
+            <button id="btn-refresh-audit" class="btn btn-secondary btn-icon" title="Rafraîchir">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              <span>Rafraîchir</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Date & Heure</th>
+                  <th>Utilisateur</th>
+                  <th>Action</th>
+                  <th>Détail de l'opération</th>
+                </tr>
+              </thead>
+              <tbody id="table-audit-logs-body">
+                <!-- Rendu JS -->
+              </tbody>
+            </table>
+          </div>
+          <!-- MOBILE : Cartes audit -->
+          <div id="mobile-audit-list" class="mobile-cards-list">
+            <!-- Rendu JS Mobile -->
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- ========== MOBILE BOTTOM NAVIGATION ========== -->
+    <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
+      <button class="bnav-btn active" data-tab="tab-dashboard" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        <span>Accueil</span>
+        <span class="bnav-badge" id="bnav-badge-urgents">0</span>
+      </button>
+      <button class="bnav-btn" data-tab="tab-abonnements" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+        <span>Abon.</span>
+      </button>
+      <button class="bnav-btn" data-tab="tab-clients" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        <span>Clients</span>
+      </button>
+      <button class="bnav-btn" data-tab="tab-comptes" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/></svg>
+        <span>Comptes</span>
+      </button>
+      <button class="bnav-btn" data-tab="tab-finances" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <span>Caisse</span>
+      </button>
+      <button class="bnav-btn" data-tab="tab-settings" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.32 9c.3.46.74.82 1.25.93H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Paramètres</span>
+      </button>
+      <button class="bnav-btn" data-tab="tab-audit" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span>Audit</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <!-- =====================================================================
+       MODALES DE CRUD (CRÉATION ET ÉDITION)
+       ===================================================================== -->
+
+  <!-- 1. Modale Abonnement (Créer / Éditer) -->
+  <div id="modal-sub" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-sub-title" class="card-title">Abonnement</h3>
+        <button class="btn btn-icon btn-close-modal" aria-label="Fermer">✕</button>
+      </div>
+      <form id="form-sub">
+        <input type="hidden" id="sub-edit-id">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="sub-client-select">Client bénéficiaire *</label>
+            <select id="sub-client-select" class="form-control" required></select>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="sub-compte-select">Compte Netflix *</label>
+              <select id="sub-compte-select" class="form-control" required></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="sub-profil-select">Profil attribué *</label>
+              <select id="sub-profil-select" class="form-control" required></select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="sub-duree-select">Durée de l'abonnement</label>
+              <select id="sub-duree-select" class="form-control">
+                <option value="1" data-price="1500" selected>1 mois (1 500 FCFA)</option>
+                <option value="2" data-price="3000">2 mois (3 000 FCFA)</option>
+                <option value="3" data-price="4500">3 mois (4 500 FCFA)</option>
+                <option value="6" data-price="9000">6 mois (9 000 FCFA)</option>
+                <option value="7" data-price="10000">7 mois / Longue durée (10 000 FCFA)</option>
+                <option value="12" data-price="18000">12 mois (18 000 FCFA)</option>
+                <option value="custom" data-price="">Personnalisé (libre)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="sub-tarif-input">Tarif (FCFA) *</label>
+              <input type="number" id="sub-tarif-input" class="form-control" required min="500" step="100">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="sub-date-debut">Date de début *</label>
+              <input type="date" id="sub-date-debut" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="sub-date-fin">Date de fin *</label>
+              <input type="date" id="sub-date-fin" class="form-control" required>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-close-modal">Annuler</button>
+          <button type="submit" class="btn btn-primary">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. Modale Client (Créer / Éditer) -->
+  <div id="modal-client" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-client-title" class="card-title">Fiche Client</h3>
+        <button class="btn btn-icon btn-close-modal" aria-label="Fermer">✕</button>
+      </div>
+      <form id="form-client">
+        <input type="hidden" id="cli-edit-id">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="cli-nom">Nom complet ou prénom usuel *</label>
+            <input type="text" id="cli-nom" class="form-control" placeholder="Ex: Kouamé Jean" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="cli-tel">Numéro WhatsApp (+225) *</label>
+            <input type="tel" id="cli-tel" class="form-control" placeholder="Ex: +225 07 12 34 56 78" required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="cli-ancien-id">Ancien identifiant (migration)</label>
+              <input type="text" id="cli-ancien-id" class="form-control" placeholder="Ex: cl 109">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="cli-origine">Origine du contact</label>
+              <select id="cli-origine" class="form-control">
+                <option value="affiche">Affiche commerciale</option>
+                <option value="whatsapp">Contact WhatsApp direct</option>
+                <option value="recommandation">Recommandation client</option>
+                <option value="autre">Autre</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="cli-notes">Notes / Observations</label>
+            <input type="text" id="cli-notes" class="form-control" placeholder="Remarques particulières...">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-close-modal">Annuler</button>
+          <button type="submit" class="btn btn-primary">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3. Modale Compte Netflix (Créer / Éditer) -->
+  <div id="modal-compte" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-compte-title" class="card-title">Compte Netflix</h3>
+        <button class="btn btn-icon btn-close-modal" aria-label="Fermer">✕</button>
+      </div>
+      <form id="form-compte">
+        <input type="hidden" id="cpt-edit-id">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="cpt-libelle">Libellé du compte *</label>
+            <input type="text" id="cpt-libelle" class="form-control" placeholder="Ex: Compte 4" required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="cpt-email">Adresse e-mail Netflix *</label>
+              <input type="email" id="cpt-email" class="form-control" placeholder="compte@netflix.com" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="cpt-password">Mot de passe Netflix *</label>
+              <input type="text" id="cpt-password" class="form-control font-mono" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="cpt-date-reabonnement">Prochain réabonnement Netflix *</label>
+              <input type="date" id="cpt-date-reabonnement" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="cpt-cout-recharge">Coût recharge mensuelle (FCFA) *</label>
+              <input type="number" id="cpt-cout-recharge" class="form-control" value="6500" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="cpt-capacite">Capacité en places (clients) *</label>
+              <input type="number" id="cpt-capacite" class="form-control" value="15" required min="1">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="cpt-max-profils">Nombre max de profils *</label>
+              <input type="number" id="cpt-max-profils" class="form-control" value="5" required min="1" max="5">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-close-modal">Annuler</button>
+          <button type="submit" class="btn btn-primary">Enregistrer le compte</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4. Modale Profil (Créer / Éditer / Code PIN) -->
+  <div id="modal-profil" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-profil-title" class="card-title">Profil Netflix</h3>
+        <button class="btn btn-icon btn-close-modal" aria-label="Fermer">✕</button>
+      </div>
+      <form id="form-profil">
+        <input type="hidden" id="prf-edit-id">
+        <input type="hidden" id="prf-compte-id">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="prf-nom">Nom du profil *</label>
+            <input type="text" id="prf-nom" class="form-control" placeholder="Ex: Cinema, Famille..." required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="prf-pin">Code PIN à 4 chiffres *</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="prf-pin" class="form-control font-mono" style="max-width: 160px; font-size: 1.25rem; letter-spacing: 0.15em; text-align: center;" maxlength="4" required>
+              <button type="button" id="btn-prf-gen-pin" class="btn btn-secondary">
+                <span>Régénérer</span>
+              </button>
+            </div>
+          </div>
+
+          <div style="background-color: var(--bg-surface-elevated); padding: var(--space-4); border-radius: var(--radius-md);">
+            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: var(--text-sm);">
+              <input type="checkbox" id="prf-renew-needed">
+              <span>Marquer comme code à renouveler (❌) suite au départ d'un client</span>
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-close-modal">Annuler</button>
+          <button type="submit" class="btn btn-primary">Enregistrer le profil</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 5. Modale Mouvement de Caisse (Créer / Éditer) -->
+  <div id="modal-cash" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-cash-title" class="card-title">Opération de Caisse</h3>
+        <button class="btn btn-icon btn-close-modal" aria-label="Fermer">✕</button>
+      </div>
+      <form id="form-cash-movement">
+        <input type="hidden" id="cash-edit-id">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="cash-type-select">Type d'opération *</label>
+            <select id="cash-type-select" class="form-control" required>
+              <option value="pointage">Pointage physique de caisse réelle</option>
+              <option value="recharge">Dépense de Recharge Netflix</option>
+              <option value="prelevement">Prélèvement Associé</option>
+              <option value="autre">Autre sortie de caisse</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="cash-beneficiaire-group">
+            <label class="form-label" for="cash-beneficiaire">Bénéficiaire / Personne concernée</label>
+            <input type="text" id="cash-beneficiaire" class="form-control" placeholder="Ex: Emmanuel, Malan Abdias, Netflix...">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="cash-montant">Montant (FCFA) *</label>
+            <input type="number" id="cash-montant" class="form-control" placeholder="Ex: 10000" required min="100">
+          </div>
+
+          <div class="form-group" id="cash-motif-group">
+            <label class="form-label" for="cash-motif">Motif / Justification</label>
+            <input type="text" id="cash-motif" class="form-control" placeholder="Ex: Prélèvement de bénéfice...">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-close-modal">Annuler</button>
+          <button type="submit" class="btn btn-primary">Valider</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 6. Modale de Relance WhatsApp Personnalisée -->
+  <div id="modal-relance" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="display: inline-flex; width: 32px; height: 32px; border-radius: 50%; background: #25d366; align-items: center; justify-content: center; color: white;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+          </span>
+          <h3 id="modal-relance-title" class="card-title">Relance WhatsApp</h3>
+        </div>
+        <button class="btn btn-icon btn-close-modal" aria-label="Fermer">✕</button>
+      </div>
+      <form id="form-relance-send">
+        <input type="hidden" id="relance-client-nom">
+        <input type="hidden" id="relance-date-fin">
+        <input type="hidden" id="relance-tarif">
+        <input type="hidden" id="relance-compte">
+        <input type="hidden" id="relance-profil">
+
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="relance-phone">Numéro WhatsApp du destinataire *</label>
+              <input type="tel" id="relance-phone" class="form-control" required placeholder="Ex: 2250700000000">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="relance-sender-select">Lien de paiement de *</label>
+              <select id="relance-sender-select" class="form-control">
+                <option value="emmanuel">Emmanuel (Fondateur)</option>
+                <option value="malan">Malan Abdias (Associé)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="relance-payment-link">Lien de paiement inséré dans le message</label>
+            <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
+              <input type="url" id="relance-payment-link" class="form-control" style="flex: 1; min-width: 220px;" placeholder="https://pay.wave.com/m/...">
+              <button type="button" class="btn btn-xs btn-outline" id="btn-relance-insert-emmanuel" style="align-self: center;">Lien Emmanuel</button>
+              <button type="button" class="btn btn-xs btn-outline" id="btn-relance-insert-malan" style="align-self: center;">Lien Malan</button>
+              <button type="button" class="btn btn-xs btn-outline" id="btn-relance-remove-link" style="align-self: center;">Sans lien</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="relance-message-content">Message à envoyer (modifiable librement avant envoi)</label>
+            <textarea id="relance-message-content" class="form-control" rows="6" style="line-height: 1.5; font-family: inherit;" required></textarea>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+              <small class="text-muted" id="relance-char-count">0 caractères</small>
+              <button type="button" id="btn-relance-copy-text" class="btn btn-xs btn-secondary">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span>Copier le message</span>
+              </button>
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 8px; margin-top: var(--space-2);">
+            <input type="checkbox" id="relance-save-template-check" style="cursor: pointer;">
+            <label for="relance-save-template-check" class="text-xs text-muted" style="cursor: pointer; margin-bottom: 0;">Mémoriser ce texte comme nouveau modèle par défaut</label>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-close-modal">Annuler</button>
+          <button type="submit" class="btn btn-whatsapp" style="display: flex; align-items: center; gap: 8px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+            <span>Envoyer sur WhatsApp</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 7. Tiroir (Drawer) Détail Client -->
+  <div id="drawer-client-backdrop" class="drawer-backdrop">
+    <div class="drawer-panel" role="dialog" aria-modal="true">
+      <div class="drawer-header">
+        <h3 id="drawer-client-name" class="card-title">Fiche Client</h3>
+        <button id="btn-close-client-drawer" class="btn btn-icon" aria-label="Fermer">✕</button>
+      </div>
+      <div id="drawer-client-content" class="drawer-body">
+        <!-- Rendu JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       8. MODALE DE CONFIRMATION RESPONSIVE (MOBILE & DESKTOP)
+       ===================================================================== -->
+  <div id="modal-confirm" class="modal-backdrop confirm-backdrop" role="dialog" aria-modal="true">
+    <div class="modal-card modal-card-confirm">
+      <div class="modal-header confirm-header" style="border-bottom: 1px solid var(--border-subtle); padding: var(--space-4);">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div id="confirm-modal-icon" style="width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(229, 9, 20, 0.15); color: var(--color-brand-red); font-size: 1.25rem;">
+            ⚠️
+          </div>
+          <div>
+            <h3 id="confirm-modal-title" class="card-title" style="font-size: var(--text-lg); margin-bottom: 2px;">Confirmation requise</h3>
+            <span id="confirm-modal-subtitle" class="text-xs text-muted">Horizon Service Platform</span>
+          </div>
+        </div>
+        <button id="btn-confirm-cancel-x" class="btn btn-icon" aria-label="Fermer">✕</button>
+      </div>
+      <div class="modal-body" style="padding: var(--space-5);">
+        <p id="confirm-modal-message" style="font-size: var(--text-sm); line-height: 1.6; color: var(--text-secondary); margin: 0;">
+          Êtes-vous sûr de vouloir effectuer cette action ?
+        </p>
+      </div>
+      <div class="modal-footer confirm-footer" style="padding: var(--space-4); display: flex; gap: var(--space-3); justify-content: flex-end; border-top: 1px solid var(--border-subtle); background: var(--bg-surface);">
+        <button type="button" id="btn-confirm-cancel" class="btn btn-secondary" style="min-width: 100px;">
+          Annuler
+        </button>
+        <button type="button" id="btn-confirm-proceed" class="btn btn-danger" style="min-width: 120px;">
+          Confirmer
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /view-admin -->
+
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+
+  <!-- PWA : Enregistrement du Service Worker -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('[PWA] Service Worker enregistré :', reg.scope))
+          .catch(err => console.warn('[PWA] Échec enregistrement SW :', err));
+      });
+    }
+  </script>
+</body>
+</html>
