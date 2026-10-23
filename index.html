@@ -38,9 +38,30 @@
 </head>
 <body>
 
+  <!-- Bannière d'erreur backend globale (masquée par défaut) -->
+  <div id="backend-error-banner" class="backend-error-banner" style="display:none;" role="alert" aria-live="assertive">
+    <div class="backend-error-content">
+      <span class="backend-error-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </span>
+      <div class="backend-error-text">
+        <div class="backend-error-title">
+          <span class="backend-error-badge">ERREUR BACKEND</span>
+          <strong id="backend-error-endpoint" style="color: #fca5a5; font-size: 0.8rem; font-family: monospace;"></strong>
+          <span id="backend-error-time" class="backend-error-time"></span>
+        </div>
+        <div id="backend-error-message" class="backend-error-message">Une erreur serveur s'est produite.</div>
+      </div>
+    </div>
+    <div class="backend-error-actions">
+      <button class="backend-error-close" id="backend-error-close-btn" aria-label="Fermer l'erreur">✕</button>
+    </div>
+  </div>
+
   <!-- =====================================================================
        VUE 1 : ÉCRAN DE CONNEXION (2 UTILISATEURS UNIQUEMENT)
        ===================================================================== -->
+
   <div id="view-login" class="login-viewport">
     <div class="login-container">
       

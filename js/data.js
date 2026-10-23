@@ -55,7 +55,8 @@ class DataStore {
   /**
    * Moteur centralisé de requêtes HTTP :
    * 1. Garantit l'absence de cache (headers anti-cache & cache: 'no-store')
-   * 2. Notifie l'utilisateur à chaque requête (succès ou non transmission)
+   * 2. Affiche les erreurs backend directement dans l'interface (bannière + toast)
+   * 3. Notifie l'utilisateur à chaque requête (succès ou non transmission)
    */
   async apiRequest(path, options = {}, actionLabel = 'Requête') {
     const url = path.startsWith('http') ? path : `${this.apiBase}${path}`;
@@ -88,33 +89,117 @@ class DataStore {
       }
 
       if (!res.ok) {
-        const errorMsg = (resData && (resData.message || resData.error)) || `Erreur serveur HTTP ${res.status}`;
-        if (typeof window !== 'undefined' && typeof window.showToast === 'function') {
-          window.showToast(`La requête n'est pas passée (${actionLabel}) : ${errorMsg}`, 'danger', 5500);
+        // Extraire le message d'erreur le plus informatif possible
+        let errorMsg = `Erreur HTTP ${res.status}`;
+        if (resData) {
+          if (Array.isArray(resData.message)) {
+            errorMsg = resData.message.join(' • ');
+          } else if (typeof resData.message === 'string') {
+            errorMsg = resData.message;
+          } else if (typeof resData.error === 'string') {
+            errorMsg = resData.error;
+          }
         }
+
+        const endpointShort = path.replace(this.apiBase, '').split('?')[0];
+
+        // Afficher dans la bannière backend globale
+        if (typeof window !== 'undefined') {
+          this._showBackendErrorBanner(endpointShort, res.status, errorMsg, opts.method || 'GET');
+          if (typeof window.showToast === 'function') {
+            window.showToast(`Erreur backend [${res.status}] — ${actionLabel} : ${errorMsg}`, 'danger', 6000);
+          }
+        }
+
         const err = new Error(errorMsg);
         err.status = res.status;
         err.data = resData;
+        err.endpoint = endpointShort;
         throw err;
       }
 
-      // Notification de succès pour l'action effectuée
-      if (typeof window !== 'undefined' && typeof window.showToast === 'function') {
-        window.showToast(`Requête réussie : ${actionLabel}`, 'success', 3500);
+      // Masquer la bannière en cas de succès
+      if (typeof window !== 'undefined') {
+        this._hideBackendErrorBanner();
       }
 
       return resData;
     } catch (err) {
-      // Erreur réseau ou coupure de liaison (la requête n'a pas pu aboutir au serveur)
       if (!err.status) {
-        const netMsg = `La requête n'est pas passée (${actionLabel}) : impossible de contacter le serveur backend.`;
-        if (typeof window !== 'undefined' && typeof window.showToast === 'function') {
-          window.showToast(netMsg, 'danger', 6000);
+        // Erreur réseau : impossible de joindre le serveur
+        const netMsg = 'Impossible de contacter le serveur backend. Vérifiez votre connexion ou que l'API est démarrée.';
+        const endpointShort = path.replace(this.apiBase, '').split('?')[0];
+
+        if (typeof window !== 'undefined') {
+          this._showBackendErrorBanner(endpointShort, 0, netMsg, opts.method || 'GET');
+          if (typeof window.showToast === 'function') {
+            window.showToast(`Réseau : ${netMsg}`, 'danger', 7000);
+          }
         }
       }
       throw err;
     }
   }
+
+  /**
+   * Affiche la bannière d'erreur backend dans l'interface
+   */
+  _showBackendErrorBanner(endpoint, status, message, method = 'GET') {
+    if (typeof document === 'undefined') return;
+    const banner = document.getElementById('backend-error-banner');
+    const msgEl = document.getElementById('backend-error-message');
+    const endpointEl = document.getElementById('backend-error-endpoint');
+    const timeEl = document.getElementById('backend-error-time');
+    const closeBtn = document.getElementById('backend-error-close-btn');
+
+    if (!banner) return;
+
+    if (msgEl) msgEl.textContent = message;
+    if (endpointEl) endpointEl.textContent = `${method} ${endpoint}` + (status ? ` [${status}]` : ' [RÉSEAU]');
+    if (timeEl) {
+      const now = new Date();
+      timeEl.textContent = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    banner.style.display = 'flex';
+    banner.style.animation = 'none';
+    // Re-trigger animation
+    requestAnimationFrame(() => {
+      banner.style.animation = '';
+      banner.style.animation = 'slideDownError 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
+    });
+
+    if (closeBtn && !closeBtn._listenerAdded) {
+      closeBtn.addEventListener('click', () => this._hideBackendErrorBanner());
+      closeBtn._listenerAdded = true;
+    }
+
+    // Auto-fermeture après 12 secondes pour les erreurs non-réseau
+    if (this._errorBannerTimer) clearTimeout(this._errorBannerTimer);
+    this._errorBannerTimer = setTimeout(() => this._hideBackendErrorBanner(), 12000);
+  }
+
+  /**
+   * Cache la bannière d'erreur backend
+   */
+  _hideBackendErrorBanner() {
+    const banner = document.getElementById('backend-error-banner');
+    if (banner) {
+      banner.style.opacity = '0';
+      banner.style.transition = 'opacity 0.3s ease';
+      setTimeout(() => {
+        banner.style.display = 'none';
+        banner.style.opacity = '';
+        banner.style.transition = '';
+      }, 320);
+    }
+    if (this._errorBannerTimer) {
+      clearTimeout(this._errorBannerTimer);
+      this._errorBannerTimer = null;
+    }
+  }
+
+
 
   // --- Synchronisation directe avec l'API SQLite ---
   async syncFromBackend(isInitial = false) {

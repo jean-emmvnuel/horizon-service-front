@@ -2054,3 +2054,216 @@ p {
     height: 160px;
   }
 }
+
+/* ==========================================================================
+   BANNIÈRE D'ERREUR BACKEND DIRECTE & ALERTES MODALES
+   ========================================================================== */
+.backend-error-banner {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(94%, 900px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: #18090a;
+  border: 1.5px solid #ef4444;
+  border-radius: var(--radius-lg, 12px);
+  padding: 12px 18px;
+  color: #fecaca;
+  box-shadow: 0 12px 35px rgba(239, 68, 68, 0.35), 0 4px 15px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(12px);
+  animation: slideDownError 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideDownError {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -20px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.backend-error-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.backend-error-icon {
+  color: #ef4444;
+  flex-shrink: 0;
+  margin-top: 2px;
+  animation: pulseErrorIcon 2s infinite ease-in-out;
+}
+
+@keyframes pulseErrorIcon {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.08); }
+}
+
+.backend-error-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.backend-error-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.85rem;
+  margin-bottom: 4px;
+}
+
+.backend-error-badge {
+  background: #dc2626;
+  color: #ffffff;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.backend-error-time {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-left: auto;
+}
+
+.backend-error-message {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #ffffff;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+.backend-error-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.backend-error-close {
+  background: transparent;
+  border: 1px solid rgba(254, 202, 202, 0.3);
+  color: #fecaca;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.backend-error-close:hover {
+  background: rgba(239, 68, 68, 0.25);
+  color: #ffffff;
+  border-color: #ef4444;
+}
+
+/* Alertes dans les formulaires et modales */
+.modal-error-alert {
+  background: #2a0e10;
+  border: 1px solid #ef4444;
+  color: #fecaca;
+  padding: 10px 14px;
+  border-radius: var(--radius-md, 8px);
+  margin-bottom: 14px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: fadeInAlert 0.2s ease;
+}
+
+@keyframes fadeInAlert {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Diagnostic Backend dans Paramètres */
+.backend-diag-card {
+  border: 1px solid #334155;
+  background: #0b1329;
+  border-radius: var(--radius-lg, 12px);
+  padding: var(--space-4, 16px);
+  margin-top: var(--space-4, 16px);
+}
+
+/* ==========================================
+   ERREUR BACKEND INLINE DANS LES MODAUX
+   ========================================== */
+.modal-backend-error-inline {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: linear-gradient(135deg, #200a0a 0%, #2a0e10 100%);
+  border: 1.5px solid #ef4444;
+  border-left: 4px solid #dc2626;
+  color: #fecaca;
+  padding: 12px 14px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  animation: fadeInAlert 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+.modal-err-icon {
+  flex-shrink: 0;
+  color: #ef4444;
+  margin-top: 1px;
+}
+
+.modal-err-text {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.modal-err-code {
+  display: inline-flex;
+  align-items: center;
+  background: #dc2626;
+  color: #fff;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  margin-right: 6px;
+  font-family: monospace;
+}
+
+.modal-err-close {
+  background: transparent;
+  border: none;
+  color: #fca5a5;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+  line-height: 1;
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+.modal-err-close:hover { opacity: 1; }
+

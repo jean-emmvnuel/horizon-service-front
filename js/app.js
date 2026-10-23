@@ -63,7 +63,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
           console.error('Erreur soumission login:', err);
           if (loginErrorMsg) {
-            loginErrorMsg.textContent = 'Erreur lors de la connexion. Vérifiez la console ou le serveur.';
+            const statusInfo = err.status ? ` [${err.status}]` : '';
+            loginErrorMsg.innerHTML = `<strong>Erreur backend${statusInfo}</strong> — ${err.message || 'Impossible de contacter le serveur.'}`;
             loginErrorMsg.style.display = 'block';
           }
         } finally {
@@ -144,6 +145,51 @@ document.addEventListener('DOMContentLoaded', () => {
     initAdminModals();
     initAdminSearchAndFilters();
     initRefreshButtons();
+  }
+
+  /**
+   * Affiche une erreur backend inline dans un modal.
+   * @param {string} modalId    - ID de l'élément modal
+   * @param {string} message    - Message d'erreur issu du backend
+   * @param {number} [status]   - Code HTTP optionnel
+   */
+  function showModalError(modalId, message, status) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    let alertEl = modal.querySelector('.modal-backend-error-inline');
+    if (!alertEl) {
+      alertEl = document.createElement('div');
+      alertEl.className = 'modal-backend-error-inline';
+      const firstChild = modal.querySelector('.modal-body, .modal-content, form');
+      if (firstChild) {
+        firstChild.insertBefore(alertEl, firstChild.firstChild);
+      } else {
+        modal.appendChild(alertEl);
+      }
+    }
+    const statusBadge = status ? `<span class="modal-err-code">${status}</span>` : '';
+    alertEl.innerHTML = `
+      <span class="modal-err-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      </span>
+      <span class="modal-err-text">${statusBadge}${message}</span>
+      <button class="modal-err-close" onclick="this.parentElement.remove()" aria-label="Fermer">✕</button>
+    `;
+    alertEl.style.display = 'flex';
+    alertEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  /**
+   * Affiche une erreur backend dans le formulaire de login.
+   */
+  function showLoginBackendError(message, status) {
+    const loginErrorMsg = document.getElementById('login-error-msg');
+    if (loginErrorMsg) {
+      loginErrorMsg.innerHTML = (status ? `<strong>[${status}]</strong> ` : '') + message;
+      loginErrorMsg.style.display = 'block';
+    }
   }
 
   function initAdminTabs() {
@@ -731,7 +777,8 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('modal-sub').classList.remove('active');
       renderAdmin();
     } catch (err) {
-      console.warn('Erreur sauvegarde abonnement :', err);
+      console.error('Erreur sauvegarde abonnement :', err);
+      showModalError('modal-sub', err.message || 'Erreur inattendue', err.status);
     }
   }
 
@@ -754,7 +801,8 @@ document.addEventListener('DOMContentLoaded', () => {
       store.logAction(currentSession?.name, 'RENOUVELLEMENT_ABONNEMENT', `Abonnement de ${clientName} renouvelé +1 mois`);
       renderAdmin();
     } catch (err) {
-      console.warn('Erreur renouvellement abonnement :', err);
+      console.error('Erreur renouvellement abonnement :', err);
+      showToast(`Renouvellement échoué : ${err.message}`, 'danger', 6000);
     }
   }
 
@@ -897,7 +945,8 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('modal-client').classList.remove('active');
       renderAdmin();
     } catch (err) {
-      console.warn('Erreur sauvegarde client :', err);
+      console.error('Erreur sauvegarde client :', err);
+      showModalError('modal-client', err.message || 'Erreur inattendue', err.status);
     }
   }
 
@@ -1163,7 +1212,8 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('modal-compte').classList.remove('active');
       renderAdmin();
     } catch (err) {
-      console.warn('Erreur sauvegarde compte :', err);
+      console.error('Erreur sauvegarde compte :', err);
+      showModalError('modal-compte', err.message || 'Erreur inattendue', err.status);
     }
   }
 
@@ -1227,7 +1277,8 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('modal-profil').classList.remove('active');
       renderAdmin();
     } catch (err) {
-      console.warn('Erreur sauvegarde profil :', err);
+      console.error('Erreur sauvegarde profil :', err);
+      showModalError('modal-profil', err.message || 'Erreur inattendue', err.status);
     }
   }
 
