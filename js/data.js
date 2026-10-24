@@ -740,10 +740,19 @@ class DataStore {
   }
 
   getKPIs() {
-    const totalAbonnementsActifs = (this.data.abonnements || []).filter(a => {
-      const s = this.getAbonnementStatus(a);
-      return s.code === 'actif' || s.code === 'echeance_proche';
-    }).length;
+    const currentPeriod = this.getPeriodeComptable();
+    const inCurrentCycle = (dateValue, start, end) => {
+      const date = this.parseBusinessDate(dateValue);
+      return date ? date >= start && date < end : false;
+    };
+
+    const abonnementsCycle = (this.data.abonnements || []).filter(a => {
+      const start = this.parseBusinessDate(a.dateDebut);
+      const end = this.parseBusinessDate(a.dateFin);
+      return start && end && start < currentPeriod.end && end > currentPeriod.start;
+    });
+
+    const totalAbonnementsActifs = abonnementsCycle.length;
 
     const totalClients = (this.data.clients || []).length;
     const totalComptes = (this.data.comptes || []).length;
@@ -751,22 +760,21 @@ class DataStore {
     const tauxRemplissage = placesMax > 0 ? Math.round((totalAbonnementsActifs / placesMax) * 100) : 0;
     const placesLibres = Math.max(0, placesMax - totalAbonnementsActifs);
 
-    const caTotal = (this.data.abonnements || []).reduce((sum, a) => sum + (Number(a.tarif) || 0), 0);
+    const caTotal = abonnementsCycle.reduce((sum, a) => sum + (Number(a.tarif) || 0), 0);
     const rechargesTotal = (this.data.mouvementsCaisse || [])
-      .filter(m => m.type === 'recharge')
+      .filter(m => m.type === 'recharge' && inCurrentCycle(m.date, currentPeriod.start, currentPeriod.end))
       .reduce((sum, m) => sum + (Number(m.montant) || 0), 0);
     const depensesTotal = (this.data.mouvementsCaisse || [])
-      .filter(m => ['prelevement', 'depense_associe', 'depense_justifiee', 'autre'].includes(m.type))
+      .filter(m => ['prelevement', 'depense_associe', 'depense_justifiee', 'autre'].includes(m.type) && inCurrentCycle(m.date, currentPeriod.start, currentPeriod.end))
       .reduce((sum, m) => sum + (Number(m.montant) || 0), 0);
 
     const caisseTheorique = caTotal - rechargesTotal - depensesTotal;
     const caisseReelle = 0;
     const ecartCaisse = caisseTheorique;
-    const currentPeriod = this.getPeriodeComptable();
     const currentPeriodId = `${currentPeriod.start.getFullYear()}-${String(currentPeriod.start.getMonth() + 1).padStart(2, '0')}-${String(currentPeriod.start.getDate()).padStart(2, '0')}`;
     const currentPeriodStats = this.getHistoriqueMensuel().find(period => period.id === currentPeriodId);
-    const caMois = currentPeriodStats ? currentPeriodStats.ca : 0;
-    const beneficeMois = currentPeriodStats ? currentPeriodStats.benefice : 0;
+    const caMois = currentPeriodStats ? currentPeriodStats.ca : caTotal;
+    const beneficeMois = currentPeriodStats ? currentPeriodStats.benefice : Math.max(0, caTotal - rechargesTotal);
     const margePctMois = caMois > 0 ? Math.round((beneficeMois / caMois) * 100) : 0;
     const periodeMoisLabel = currentPeriod.start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
       + ' – '
