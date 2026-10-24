@@ -756,8 +756,9 @@ document.addEventListener('DOMContentLoaded', () => {
       title.textContent = 'Créer un nouvel abonnement';
       inputEditId.value = '';
       inputTarif.value = 1500;
-      inputDateDebut.value = '2026-10-22';
-      const d = new Date('2026-10-22');
+      const today = new Date();
+      inputDateDebut.value = today.toISOString().split('T')[0];
+      const d = new Date(today);
       d.setMonth(d.getMonth() + 1);
       inputDateFin.value = d.toISOString().split('T')[0];
       if (selDuree) selDuree.value = '1';
@@ -1226,7 +1227,7 @@ document.addEventListener('DOMContentLoaded', () => {
       inputMaxProfils.value = 5;
       inputCout.value = 6500;
       inputPassword.value = 'Hz#Nflx' + Math.floor(1000 + Math.random() * 9000);
-      const d = new Date('2026-10-22');
+      const d = new Date();
       d.setMonth(d.getMonth() + 1);
       inputReabonnement.value = d.toISOString().split('T')[0];
     }

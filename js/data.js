@@ -618,7 +618,7 @@ class DataStore {
   // =============================================================
   // MÉTRIQUES ET CALCULS EN TEMPS RÉEL SUR LA BASE
   // =============================================================
-  getAbonnementStatus(abonnement, referenceDateStr = '2026-10-22') {
+  getAbonnementStatus(abonnement, referenceDateStr = new Date().toISOString().split('T')[0]) {
     const ref = new Date(referenceDateStr).getTime();
     const end = new Date(abonnement.dateFin).getTime();
     const diffDays = Math.ceil((end - ref) / (1000 * 60 * 60 * 24));
@@ -631,7 +631,7 @@ class DataStore {
     return { code: 'actif', label: 'Actif', daysLeft: diffDays, badgeClass: 'badge-success' };
   }
 
-  getUrgentAbonnements(referenceDateStr = '2026-10-22') {
+  getUrgentAbonnements(referenceDateStr = new Date().toISOString().split('T')[0]) {
     return (this.data.abonnements || [])
       .map(ab => {
         const client = (this.data.clients || []).find(c => c.id === ab.clientId);
