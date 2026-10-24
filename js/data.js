@@ -768,9 +768,18 @@ class DataStore {
       .filter(m => ['prelevement', 'depense_associe', 'depense_justifiee', 'autre'].includes(m.type) && inCurrentCycle(m.date, currentPeriod.start, currentPeriod.end))
       .reduce((sum, m) => sum + (Number(m.montant) || 0), 0);
 
-    // Écart calculé : CA total - toutes les dépenses enregistrées (recharges + dépenses opérationnelles).
+    const caTotalBusiness = (this.data.abonnements || []).reduce((sum, a) => sum + (Number(a.tarif) || 0), 0);
+    const rechargesTotalBusiness = (this.data.mouvementsCaisse || [])
+      .filter(m => m.type === 'recharge')
+      .reduce((sum, m) => sum + (Number(m.montant) || 0), 0);
+    const depensesTotalBusiness = (this.data.mouvementsCaisse || [])
+      .filter(m => ['prelevement', 'depense_associe', 'depense_justifiee', 'autre'].includes(m.type))
+      .reduce((sum, m) => sum + (Number(m.montant) || 0), 0);
+
+    // Règle métier : l'écart de caisse global est calculé comme le CA total du business moins toutes les dépenses enregistrées.
     const totalDepenses = rechargesTotal + depensesTotal;
-    const caisseTheorique = caTotal - totalDepenses;
+    const totalDepensesBusiness = rechargesTotalBusiness + depensesTotalBusiness;
+    const caisseTheorique = caTotalBusiness - totalDepensesBusiness;
     const caisseReelle = 0;
     const ecartCaisse = caisseTheorique;
     const currentPeriodId = `${currentPeriod.start.getFullYear()}-${String(currentPeriod.start.getMonth() + 1).padStart(2, '0')}-${String(currentPeriod.start.getDate()).padStart(2, '0')}`;

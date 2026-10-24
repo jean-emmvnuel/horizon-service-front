@@ -1349,7 +1349,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const elBeneficeCumule = document.getElementById('fin-benefice-cumule');
     if (elBeneficeCumule) {
-      const beneficeTheorique = Math.max(0, kpis.caTotal - kpis.rechargesTotal);
+      const beneficeTheorique = Math.max(0, kpis.caTotal - (kpis.rechargesTotal + kpis.depensesTotal));
       elBeneficeCumule.textContent = `${formatFCFA(beneficeTheorique)} FCFA`;
     }
 
@@ -2232,12 +2232,10 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="partner-card">
             <div style="font-weight: bold; font-size: 11px; color: #e50914; margin-bottom: 4px;">Part Associé : Jean Emmanuel (Fondateur 50%)</div>
             <div style="font-size: 16px; font-weight: 900; color: #0f172a;">${formatFCFA(partChacun)}</div>
-            <div style="font-size: 9px; color: #64748b; margin-top: 2px;">Lien Wave : pay.wave.com/m/horizon-service-emmanuel</div>
           </div>
           <div class="partner-card">
             <div style="font-weight: bold; font-size: 11px; color: #0284c7; margin-bottom: 4px;">Part Associé : Malan Abdias (Associé 50%)</div>
             <div style="font-size: 16px; font-weight: 900; color: #0f172a;">${formatFCFA(partChacun)}</div>
-            <div style="font-size: 9px; color: #64748b; margin-top: 2px;">Lien Wave : pay.wave.com/m/horizon-service-malan</div>
           </div>
         </div>
 
