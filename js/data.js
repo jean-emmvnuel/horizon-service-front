@@ -686,6 +686,12 @@ class DataStore {
       : new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
   }
 
+  normalizeMonthlyTarif(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) return 1500;
+    return Math.round(numeric / 1500) * 1500;
+  }
+
   getSubscriptionRevenueShare(ab, periodStart, periodEnd) {
     const start = this.parseBusinessDate(ab.dateDebut);
     const end = this.parseBusinessDate(ab.dateFin);
@@ -697,9 +703,9 @@ class DataStore {
 
     const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
     const overlapDays = Math.max(1, Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-    const tarif = Number(ab.tarif) || 0;
+    const tarif = this.normalizeMonthlyTarif(ab.tarif);
 
-    return tarif * (overlapDays / totalDays);
+    return Math.round(tarif * (overlapDays / totalDays));
   }
 
   getHistoriqueMensuel() {

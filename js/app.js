@@ -772,12 +772,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const editId = document.getElementById('sub-edit-id').value;
     const clientId = document.getElementById('sub-client-select').value;
     const profilId = document.getElementById('sub-profil-select').value;
-    const tarif = parseInt(document.getElementById('sub-tarif-input').value, 10);
+    const rawTarif = parseInt(document.getElementById('sub-tarif-input').value, 10);
+    const tarif = Math.round(rawTarif / 1500) * 1500;
     const dateDebut = document.getElementById('sub-date-debut').value;
     const dateFin = document.getElementById('sub-date-fin').value;
 
     if (new Date(dateFin) <= new Date(dateDebut)) {
       showToast('La date de fin doit être postérieure à la date de début.', 'warning');
+      return;
+    }
+    if (!Number.isFinite(rawTarif) || rawTarif <= 0) {
+      showToast('Le tarif doit être un montant positif.', 'warning');
+      return;
+    }
+    if (rawTarif % 1500 !== 0) {
+      showToast('Le tarif mensuel doit être un multiple de 1 500 FCFA.', 'warning');
       return;
     }
 
@@ -1748,7 +1757,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Utilitaires
   function formatFCFA(val) {
     if (val === undefined || val === null) return '0';
-    return Number(val).toLocaleString('fr-FR');
+    const numeric = Number(val);
+    if (!Number.isFinite(numeric)) return '0';
+    return Math.round(numeric).toLocaleString('fr-FR');
   }
 
   function formatDate(isoStr) {
