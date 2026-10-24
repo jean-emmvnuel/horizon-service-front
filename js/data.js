@@ -692,6 +692,11 @@ class DataStore {
     return Math.round(numeric / 1500) * 1500;
   }
 
+  roundTo1500(value) {
+    const numeric = Number(value) || 0;
+    return Math.round(numeric / 1500) * 1500;
+  }
+
   getSubscriptionRevenueShare(ab, periodStart, periodEnd) {
     const start = this.parseBusinessDate(ab.dateDebut);
     const end = this.parseBusinessDate(ab.dateFin);
@@ -704,8 +709,9 @@ class DataStore {
     const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
     const overlapDays = Math.max(1, Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
     const tarif = this.normalizeMonthlyTarif(ab.tarif);
+    const value = tarif * (overlapDays / totalDays);
 
-    return Math.round(tarif * (overlapDays / totalDays));
+    return this.roundTo1500(value);
   }
 
   getHistoriqueMensuel() {
@@ -778,7 +784,7 @@ class DataStore {
     const caTotal = abonnementsCycle.reduce((sum, a) => {
       const start = this.parseBusinessDate(a.dateDebut);
       const end = this.parseBusinessDate(a.dateFin);
-      if (!start || !end) return sum + (Number(a.tarif) || 0);
+      if (!start || !end) return sum + this.normalizeMonthlyTarif(a.tarif);
 
       const overlapStart = new Date(Math.max(start.getTime(), currentPeriod.start.getTime()));
       const overlapEnd = new Date(Math.min(end.getTime(), currentPeriod.end.getTime()));
@@ -786,7 +792,8 @@ class DataStore {
 
       const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
       const overlapDays = Math.max(1, Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-      return sum + (Number(a.tarif) || 0) * (overlapDays / totalDays);
+      const value = this.normalizeMonthlyTarif(a.tarif) * (overlapDays / totalDays);
+      return sum + this.roundTo1500(value);
     }, 0);
     const rechargesTotal = (this.data.mouvementsCaisse || [])
       .filter(m => m.type === 'recharge' && inCurrentCycle(m.date, currentPeriod.start, currentPeriod.end))
