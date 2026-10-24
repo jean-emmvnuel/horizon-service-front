@@ -686,6 +686,22 @@ class DataStore {
       : new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
   }
 
+  getSubscriptionRevenueShare(ab, periodStart, periodEnd) {
+    const start = this.parseBusinessDate(ab.dateDebut);
+    const end = this.parseBusinessDate(ab.dateFin);
+    if (!start || !end) return 0;
+
+    const overlapStart = new Date(Math.max(start.getTime(), periodStart.getTime()));
+    const overlapEnd = new Date(Math.min(end.getTime(), periodEnd.getTime()));
+    if (overlapEnd <= overlapStart) return 0;
+
+    const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    const overlapDays = Math.max(1, Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    const tarif = Number(ab.tarif) || 0;
+
+    return tarif * (overlapDays / totalDays);
+  }
+
   getHistoriqueMensuel() {
     const currentPeriod = this.getPeriodeComptable();
     const periods = [];
@@ -709,15 +725,8 @@ class DataStore {
     }
 
     (this.data.abonnements || []).forEach(ab => {
-      const start = this.parseBusinessDate(ab.dateDebut);
-      const end = this.parseBusinessDate(ab.dateFin);
-      if (!start || !end) return;
-
-      const tarif = Number(ab.tarif) || 0;
       periods.forEach(period => {
-        if (start < period.end && end > period.start) {
-          period.ca += tarif;
-        }
+        period.ca += this.getSubscriptionRevenueShare(ab, period.start, period.end);
       });
     });
 
@@ -760,7 +769,19 @@ class DataStore {
     const tauxRemplissage = placesMax > 0 ? Math.round((totalAbonnementsActifs / placesMax) * 100) : 0;
     const placesLibres = Math.max(0, placesMax - totalAbonnementsActifs);
 
-    const caTotal = abonnementsCycle.reduce((sum, a) => sum + (Number(a.tarif) || 0), 0);
+    const caTotal = abonnementsCycle.reduce((sum, a) => {
+      const start = this.parseBusinessDate(a.dateDebut);
+      const end = this.parseBusinessDate(a.dateFin);
+      if (!start || !end) return sum + (Number(a.tarif) || 0);
+
+      const overlapStart = new Date(Math.max(start.getTime(), currentPeriod.start.getTime()));
+      const overlapEnd = new Date(Math.min(end.getTime(), currentPeriod.end.getTime()));
+      if (overlapEnd <= overlapStart) return sum;
+
+      const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+      const overlapDays = Math.max(1, Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+      return sum + (Number(a.tarif) || 0) * (overlapDays / totalDays);
+    }, 0);
     const rechargesTotal = (this.data.mouvementsCaisse || [])
       .filter(m => m.type === 'recharge' && inCurrentCycle(m.date, currentPeriod.start, currentPeriod.end))
       .reduce((sum, m) => sum + (Number(m.montant) || 0), 0);
